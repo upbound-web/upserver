@@ -1,0 +1,34 @@
+services:
+  backend:
+    build: ./backend
+    container_name: upserver-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+      # Expose range for dev servers (staging sites)
+      # You can point Cloudflare Tunnels to localhost:3000, localhost:3001, etc.
+      - "3000-3050:3000-3050"
+    volumes:
+      - ./sites:/app/sites
+      - ./backend/database:/app/database
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - SITES_DIR=/app/sites
+      # Update this to your public frontend URL if accessing via a separate API domain
+      # e.g. https://upserver.com
+      - FRONTEND_URL=http://localhost:4099
+      # Range for dev servers
+      - DEV_SERVER_START_PORT=3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    container_name: upserver-frontend
+    restart: unless-stopped
+    ports:
+      - "4099:80"
+    depends_on:
+      - backend
+

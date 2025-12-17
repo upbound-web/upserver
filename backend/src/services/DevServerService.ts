@@ -146,12 +146,12 @@ export class DevServerService {
 
         if (supportsPortFlag && devScriptHasHardcodedPort) {
           command = "npx";
-          args = ["-y", "pnpm", "exec", "vite", "dev", "--port", port.toString()];
+          args = ["-y", "pnpm", "exec", "vite", "dev", "--port", port.toString(), "--host", "0.0.0.0"];
         } else {
           command = "npx";
           args = ["-y", "pnpm", "run", "dev"];
           if (supportsPortFlag) {
-            args.push("--", "--port", port.toString());
+            args.push("--", "--port", port.toString(), "--host", "0.0.0.0");
           }
         }
       } else if (hasYarnLock) {
@@ -160,12 +160,12 @@ export class DevServerService {
 
         if (supportsPortFlag && devScriptHasHardcodedPort) {
           command = "yarn";
-          args = ["vite", "dev", "--port", port.toString()];
+          args = ["vite", "dev", "--port", port.toString(), "--host", "0.0.0.0"];
         } else {
           command = "yarn";
           args = ["dev"];
           if (supportsPortFlag) {
-            args.push("--", "--port", port.toString());
+            args.push("--", "--port", port.toString(), "--host", "0.0.0.0");
           }
         }
       } else {
@@ -174,12 +174,12 @@ export class DevServerService {
 
         if (supportsPortFlag && devScriptHasHardcodedPort) {
           command = "npx";
-          args = ["vite", "dev", "--port", port.toString()];
+          args = ["vite", "dev", "--port", port.toString(), "--host", "0.0.0.0"];
         } else {
           command = "npm";
           args = ["run", "dev"];
           if (supportsPortFlag) {
-            args.push("--", "--port", port.toString());
+            args.push("--", "--port", port.toString(), "--host", "0.0.0.0");
           }
         }
       }
@@ -255,7 +255,7 @@ export class DevServerService {
     } else {
       // Static HTML site
       command = "python3";
-      args = ["-m", "http.server", port.toString()];
+      args = ["-m", "http.server", port.toString(), "--bind", "0.0.0.0"];
 
       childProcess = spawn(command, args, {
         cwd: sitePath,
