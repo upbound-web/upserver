@@ -6,8 +6,8 @@ services:
     ports:
       - "4000:4000"
       # Expose range for dev servers (staging sites)
-      # You can point Cloudflare Tunnels to localhost:3000, localhost:3001, etc.
-      - "3000-3050:3000-3050"
+      # You can point Cloudflare Tunnels to localhost:3100, localhost:3101, etc.
+      - "3100-3150:3100-3150"
     volumes:
       - ./sites:/app/sites
       - ./backend/database:/app/database
@@ -19,7 +19,7 @@ services:
       # e.g. https://upserver.com
       - FRONTEND_URL=http://localhost:4099
       # Range for dev servers
-      - DEV_SERVER_START_PORT=3000
+      - DEV_SERVER_START_PORT=3100
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
