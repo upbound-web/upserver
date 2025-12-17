@@ -26,6 +26,7 @@
     "find-free-port": "^2.0.0",
     "multer": "^1.4.5-lts.1",
     "nanoid": "^5.1.6",
+    "resend": "^6.6.0",
     "tree-kill": "^1.2.2",
     "zod": "^4.1.13"
   },

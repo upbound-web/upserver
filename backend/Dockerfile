@@ -19,6 +19,9 @@ COPY package.json pnpm-lock.yaml ./
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
+# Install Claude Code CLI globally
+RUN npm install -g @anthropic-ai/claude-code
+
 # Copy source code
 COPY . .
 

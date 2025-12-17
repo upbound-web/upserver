@@ -1,27 +1,29 @@
-interface NotificationPayload {
-  title: string;
-  text: string;
-}
+import { Resend } from 'resend';
 
 export class NotificationService {
-  private static slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
+  private static resend = new Resend(process.env.RESEND_API_KEY);
+  private static developerEmail = process.env.DEVELOPER_EMAIL;
+  private static emailFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-  private static async sendSlack(payload: NotificationPayload) {
-    if (!this.slackWebhookUrl) {
-      console.log('[Notification] Slack webhook not configured. Skipping.', payload);
+  private static async sendEmail(title: string, htmlContent: string) {
+    if (!process.env.RESEND_API_KEY || !this.developerEmail) {
+      console.log('[Notification] Resend API Key or Developer Email not configured. Logging payload:', { title, htmlContent });
       return;
     }
 
     try {
-      await fetch(this.slackWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: `*${payload.title}*\n${payload.text}`,
-        }),
+      const { error } = await this.resend.emails.send({
+        from: this.emailFrom,
+        to: this.developerEmail,
+        subject: title,
+        html: htmlContent,
       });
+
+      if (error) {
+        console.error('[Notification] Failed to send email notification', error);
+      }
     } catch (error) {
-      console.error('[Notification] Failed to send Slack notification', error);
+      console.error('[Notification] Failed to send email notification', error);
     }
   }
 
@@ -32,22 +34,22 @@ export class NotificationService {
     sessionId: string;
   }) {
     const title = '🚩 Request flagged for review';
-    const text =
-      `Customer: ${params.customerName || params.customerId}\n` +
-      `Session: ${params.sessionId}\n` +
-      `Request: ${params.request}`;
+    const html =
+      `<p><strong>Customer:</strong> ${params.customerName || params.customerId}</p>` +
+      `<p><strong>Session:</strong> ${params.sessionId}</p>` +
+      `<p><strong>Request:</strong> ${params.request}</p>`;
 
-    await this.sendSlack({ title, text });
+    await this.sendEmail(title, html);
   }
 
   static async notifyError(params: { customerId?: string; context: string; error: string }) {
     const title = '⚠️ Claude error';
-    const text =
-      `Context: ${params.context}\n` +
-      (params.customerId ? `Customer: ${params.customerId}\n` : '') +
-      `Error: ${params.error}`;
+    const html =
+      `<p><strong>Context:</strong> ${params.context}</p>` +
+      (params.customerId ? `<p><strong>Customer:</strong> ${params.customerId}</p>` : '') +
+      `<p><strong>Error:</strong> ${params.error}</p>`;
 
-    await this.sendSlack({ title, text });
+    await this.sendEmail(title, html);
   }
 
   static async notifyPublish(params: {
@@ -57,16 +59,11 @@ export class NotificationService {
     message: string;
   }) {
     const title = '✅ Publish completed';
-    const text =
-      `Customer: ${params.customerName || params.customerId}\n` +
-      (params.commitHash ? `Commit: ${params.commitHash}\n` : '') +
-      `Message: ${params.message}`;
+    const html =
+      `<p><strong>Customer:</strong> ${params.customerName || params.customerId}</p>` +
+      (params.commitHash ? `<p><strong>Commit:</strong> ${params.commitHash}</p>` : '') +
+      `<p><strong>Message:</strong> ${params.message}</p>`;
 
-    await this.sendSlack({ title, text });
+    await this.sendEmail(title, html);
   }
 }
-
-
-
-
-

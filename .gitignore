@@ -20,7 +20,6 @@ sites/
 *.db-shm
 *.db-wal
 backend/database/
-backend/drizzle/
 
 # Build outputs
 dist/
@@ -60,6 +59,9 @@ coverage/
 .cache/
 .temp/
 .tmp/
+
+# pnpm
+.pnpm-store/
 
 
 
