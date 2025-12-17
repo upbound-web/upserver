@@ -11,6 +11,8 @@ services:
     volumes:
       - ./sites:/app/sites
       - ./backend/database:/app/database
+    env_file:
+      - ./backend/.env
     environment:
       - NODE_ENV=production
       - PORT=4000
