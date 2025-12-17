@@ -71,7 +71,7 @@ export const devServers = sqliteTable('dev_servers', {
   customerId: text('customer_id').primaryKey().references(() => customers.id, { onDelete: 'cascade' }),
   port: integer('port').notNull(),
   pid: integer('pid'),
-  status: text('status', { enum: ['stopped', 'starting', 'running'] }).notNull(),
+  status: text('status', { enum: ['stopped', 'starting', 'running', 'error'] }).notNull(),
   startedAt: integer('started_at', { mode: 'timestamp' }),
   lastActivity: integer('last_activity', { mode: 'timestamp' }),
 });

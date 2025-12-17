@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { PublishService } from '../services/PublishService.js';
 import { ChatService } from '../services/ChatService.js';
 
-const router = Router();
+const router: Router = Router();
 
 // All routes require authentication
 router.use(requireAuth);

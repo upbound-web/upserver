@@ -7,7 +7,7 @@ import { join, resolve, relative } from 'path';
 import { readFile } from 'fs/promises';
 import { access } from 'fs/promises';
 
-const router = Router();
+const router: Router = Router();
 
 // Configure multer for memory storage (we'll write files manually)
 const upload = multer({

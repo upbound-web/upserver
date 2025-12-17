@@ -6,7 +6,7 @@ import { user, customers } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
-const router = Router();
+const router: Router = Router();
 
 // All admin routes require authentication and admin role
 router.use(requireAuth);
