@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { RequireAdmin } from '@/lib/route-guards'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Edit, ArrowLeft, UserPlus } from 'lucide-react'
+import { Plus, Edit, ArrowLeft, UserPlus, Eye } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -56,6 +56,7 @@ type UserFormData = z.infer<typeof userSchema>
 
 function UsersPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [addingToSite, setAddingToSite] = useState<{ user: User; siteId: string } | null>(null)
@@ -125,6 +126,13 @@ function UsersPage() {
     setAddingToSite({ user, siteId: '' })
   }
 
+  const handleViewAsUser = (user: User) => {
+    // Only allow viewing as non-admin users
+    if (user.role !== 'admin') {
+      navigate({ to: '/chat', search: { userId: user.id } })
+    }
+  }
+
   return (
     <RequireAdmin>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -171,7 +179,7 @@ function UsersPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
@@ -188,6 +196,16 @@ function UsersPage() {
                       <UserPlus className="h-3 w-3 mr-1" />
                       Add to Site
                     </Button>
+                    {user.role !== 'admin' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewAsUser(user)}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        View as User
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSessionMessages, sendMessage, streamMessage, type Message } from '@/lib/chat-api'
 import { MessageBubble } from './MessageBubble'
+import { AdminImpersonationBanner } from './AdminImpersonationBanner'
 import { Button } from '@/components/ui/button'
 import { Loader2, Send, Image as ImageIcon, X, AlertCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -10,9 +11,10 @@ import { Alert, AlertDescription } from '../ui/alert'
 
 interface ChatInterfaceProps {
   sessionId: string | null
+  viewAsUserId?: string | null
 }
 
-export function ChatInterface({ sessionId }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('')
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [optimizedImages, setOptimizedImages] = useState<File[]>([])
@@ -27,17 +29,17 @@ export function ChatInterface({ sessionId }: ChatInterfaceProps) {
   const queryClient = useQueryClient()
 
   const { data, isLoading, error: messagesError } = useQuery({
-    queryKey: ['chatMessages', sessionId],
-    queryFn: () => getSessionMessages(sessionId!),
+    queryKey: ['chatMessages', sessionId, viewAsUserId],
+    queryFn: () => getSessionMessages(sessionId!, viewAsUserId),
     enabled: !!sessionId,
   })
 
   const sendMessageMutation = useMutation({
     mutationFn: ({ sessionId, content, images }: { sessionId: string; content: string; images?: File[] }) =>
-      sendMessage(sessionId, content, images),
+      sendMessage(sessionId, content, images, viewAsUserId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chatMessages', sessionId] })
-      queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', sessionId, viewAsUserId] })
+      queryClient.invalidateQueries({ queryKey: ['chatSessions', viewAsUserId] })
       setInputValue('')
       setSelectedImages([])
       setOptimizedImages([])
@@ -175,10 +177,10 @@ export function ChatInterface({ sessionId }: ChatInterfaceProps) {
           setSelectedImages([])
           setOptimizedImages([])
           // Refresh messages and sessions to show the persisted assistant message
-          queryClient.invalidateQueries({ queryKey: ['chatMessages', sessionId] })
-          queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+          queryClient.invalidateQueries({ queryKey: ['chatMessages', sessionId, viewAsUserId] })
+          queryClient.invalidateQueries({ queryKey: ['chatSessions', viewAsUserId] })
         }
-      })
+      }, viewAsUserId)
     } catch (error) {
       console.error('Streaming error:', error)
       setStreamError(
@@ -206,6 +208,12 @@ export function ChatInterface({ sessionId }: ChatInterfaceProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-stone-50 dark:bg-stone-950 h-full">
+      {/* Admin Impersonation Banner */}
+      {viewAsUserId && (
+        <div className="px-4 pt-4">
+          <AdminImpersonationBanner userId={viewAsUserId} />
+        </div>
+      )}
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4">
         {messagesError && (
@@ -235,7 +243,7 @@ export function ChatInterface({ sessionId }: ChatInterfaceProps) {
         ) : (
           <div className="max-w-3xl mx-auto w-full">
             {messages.map((message: Message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble key={message.id} message={message} userId={viewAsUserId} />
             ))}
             {(sendMessageMutation.isPending || isStreaming) && (
               <div className="flex justify-start mb-4">
@@ -260,6 +268,7 @@ export function ChatInterface({ sessionId }: ChatInterfaceProps) {
                   flagged: false,
                   createdAt: new Date().toISOString(),
                 }}
+                userId={viewAsUserId}
               />
             )}
             <div ref={messagesEndRef} />

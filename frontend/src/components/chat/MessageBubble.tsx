@@ -5,9 +5,10 @@ import { AlertCircle } from "lucide-react";
 
 interface MessageBubbleProps {
   message: Message;
+  userId?: string | null;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, userId }: MessageBubbleProps) {
   const isCustomer = message.role === "customer";
   const isSystem = message.role === "system";
 
@@ -61,7 +62,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     : message.images;
                 if (Array.isArray(imagePaths)) {
                   return imagePaths.map((path: string, index: number) => {
-                    const imageUrl = getImageUrl(path);
+                    const imageUrl = getImageUrl(path, userId);
                     return (
                       <img
                         key={index}

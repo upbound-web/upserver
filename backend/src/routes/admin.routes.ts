@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { db } from '../config/db.js';
-import { user, customers } from '../db/schema.js';
+import { user, customers, chatSessions } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { ChatService } from '../services/ChatService.js';
 
 const router: Router = Router();
 
@@ -494,6 +495,75 @@ router.post('/sites/:id/users', async (req, res, next) => {
       .limit(1);
 
     res.status(201).json({ site: newCustomer[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ========== CHAT Management ==========
+
+// GET /api/admin/users/:id/chats - Get all chat sessions for a user
+router.get('/users/:id/chats', async (req, res, next) => {
+  try {
+    // Verify user exists
+    const userData = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, req.params.id))
+      .limit(1);
+
+    if (!userData.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get customer record for this user
+    const customer = await ChatService.getCustomerByUserId(req.params.id);
+
+    if (!customer) {
+      return res.json({ sessions: [] });
+    }
+
+    const sessions = await ChatService.getSessions(customer.id);
+    res.json({ sessions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/users/:id/chats/:sessionId - Get specific chat session with messages
+router.get('/users/:id/chats/:sessionId', async (req, res, next) => {
+  try {
+    // Verify user exists
+    const userData = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, req.params.id))
+      .limit(1);
+
+    if (!userData.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get customer record for this user
+    const customer = await ChatService.getCustomerByUserId(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found for this user' });
+    }
+
+    // Verify session belongs to this customer
+    const session = await db
+      .select()
+      .from(chatSessions)
+      .where(eq(chatSessions.id, req.params.sessionId))
+      .limit(1);
+
+    if (!session.length || session[0].customerId !== customer.id) {
+      return res.status(404).json({ error: 'Chat session not found' });
+    }
+
+    const messages = await ChatService.getSessionMessages(req.params.sessionId);
+    res.json({ messages });
   } catch (error) {
     next(error);
   }

@@ -7,20 +7,21 @@ import { MessageSquare, Plus, Loader2 } from 'lucide-react'
 interface SessionSidebarProps {
   currentSessionId: string | null
   onSessionSelect: (sessionId: string) => void
+  viewAsUserId?: string | null
 }
 
-export function SessionSidebar({ currentSessionId, onSessionSelect }: SessionSidebarProps) {
+export function SessionSidebar({ currentSessionId, onSessionSelect, viewAsUserId }: SessionSidebarProps) {
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['chatSessions'],
-    queryFn: getChatSessions,
+    queryKey: ['chatSessions', viewAsUserId],
+    queryFn: () => getChatSessions(viewAsUserId),
   })
 
   const createSessionMutation = useMutation({
-    mutationFn: createChatSession,
+    mutationFn: () => createChatSession(viewAsUserId),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+      queryClient.invalidateQueries({ queryKey: ['chatSessions', viewAsUserId] })
       onSessionSelect(data.session.id)
     },
   })

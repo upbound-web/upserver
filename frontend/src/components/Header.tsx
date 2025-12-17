@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings, Play, Square, ExternalLink, Loader2 } from 'lucide-react'
@@ -19,25 +19,29 @@ export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
   const { data: session } = useSession()
   const queryClient = useQueryClient()
+  
+  // Get userId from route search params if present (for admin impersonation)
+  const search = useSearch({ strict: false }) as { userId?: string }
+  const viewAsUserId = search?.userId || null
 
   const { data: serverStatusData } = useQuery({
-    queryKey: ['devServerStatus'],
-    queryFn: getDevServerStatus,
+    queryKey: ['devServerStatus', viewAsUserId],
+    queryFn: () => getDevServerStatus(viewAsUserId),
     enabled: !!session?.user,
     refetchInterval: 5000,
   })
 
   const startServerMutation = useMutation({
-    mutationFn: startDevServer,
+    mutationFn: () => startDevServer(viewAsUserId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerStatus', viewAsUserId] })
     },
   })
 
   const stopServerMutation = useMutation({
-    mutationFn: stopDevServer,
+    mutationFn: () => stopDevServer(viewAsUserId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerStatus', viewAsUserId] })
     },
   })
 

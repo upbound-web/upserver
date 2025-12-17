@@ -3,10 +3,13 @@ const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'
 /**
  * Get the full URL for an image path stored in a message
  */
-export function getImageUrl(imagePath: string): string {
+export function getImageUrl(imagePath: string, userId?: string | null): string {
   // imagePath is like "public/uploads/filename.jpg"
   // We need to encode it for the URL
-  return `${API_BASE_URL}/api/chat/images/${encodeURIComponent(imagePath)}`
+  const baseUrl = `${API_BASE_URL}/api/chat/images/${encodeURIComponent(imagePath)}`
+  if (!userId) return baseUrl
+  const separator = baseUrl.includes('?') ? '&' : '?'
+  return `${baseUrl}${separator}userId=${encodeURIComponent(userId)}`
 }
 
 export interface ChatSession {
@@ -28,7 +31,16 @@ export interface Message {
   createdAt: string
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
+/**
+ * Helper to append userId query param to URL if provided
+ */
+function appendUserIdParam(url: string, userId?: string | null): string {
+  if (!userId) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}userId=${encodeURIComponent(userId)}`
+}
+
+async function fetchWithAuth(url: string, options: RequestInit = {}, userId?: string | null) {
   // Only set Content-Type for non-FormData requests
   const isFormData = options.body instanceof FormData
   const headers: Record<string, string> = {
@@ -39,7 +51,10 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
     headers['Content-Type'] = 'application/json'
   }
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  // Append userId query param if provided
+  const finalUrl = appendUserIdParam(url, userId)
+
+  const response = await fetch(`${API_BASE_URL}${finalUrl}`, {
     ...options,
     credentials: 'include', // Include cookies for authentication
     headers,
@@ -53,24 +68,25 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   return response.json()
 }
 
-export async function getChatSessions(): Promise<{ sessions: ChatSession[] }> {
-  return fetchWithAuth('/api/chat/sessions')
+export async function getChatSessions(userId?: string | null): Promise<{ sessions: ChatSession[] }> {
+  return fetchWithAuth('/api/chat/sessions', {}, userId)
 }
 
-export async function createChatSession(): Promise<{ session: ChatSession }> {
+export async function createChatSession(userId?: string | null): Promise<{ session: ChatSession }> {
   return fetchWithAuth('/api/chat/sessions', {
     method: 'POST',
-  })
+  }, userId)
 }
 
-export async function getSessionMessages(sessionId: string): Promise<{ messages: Message[] }> {
-  return fetchWithAuth(`/api/chat/sessions/${sessionId}`)
+export async function getSessionMessages(sessionId: string, userId?: string | null): Promise<{ messages: Message[] }> {
+  return fetchWithAuth(`/api/chat/sessions/${sessionId}`, {}, userId)
 }
 
 export async function sendMessage(
   sessionId: string,
   content: string,
-  images?: File[]
+  images?: File[],
+  userId?: string | null
 ): Promise<{ message: Message }> {
   // If images are provided, use FormData; otherwise use JSON
   if (images && images.length > 0) {
@@ -86,12 +102,12 @@ export async function sendMessage(
         // Don't set Content-Type for FormData - browser will set it with boundary
       },
       body: formData,
-    })
+    }, userId)
   } else {
     return fetchWithAuth(`/api/chat/sessions/${sessionId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ content }),
-    })
+    }, userId)
   }
 }
 
@@ -112,9 +128,11 @@ export type StreamEvent =
 export async function streamMessage(
   sessionId: string,
   content: string,
-  onEvent: (event: StreamEvent) => void
+  onEvent: (event: StreamEvent) => void,
+  userId?: string | null
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages/stream`, {
+  const url = appendUserIdParam(`/api/chat/sessions/${sessionId}/messages/stream`, userId)
+  const response = await fetch(`${API_BASE_URL}${url}`, {
     method: 'POST',
     credentials: 'include',
     headers: {

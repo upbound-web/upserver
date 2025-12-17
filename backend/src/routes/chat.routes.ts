@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { impersonateUser } from '../middleware/impersonateUser.js';
 import { ChatService } from '../services/ChatService.js';
 import { ImageUploadService } from '../services/ImageUploadService.js';
 import { join, resolve, relative } from 'path';
@@ -27,6 +28,8 @@ const upload = multer({
 
 // All routes require authentication
 router.use(requireAuth);
+// Allow admins to impersonate users via userId query param
+router.use(impersonateUser);
 
 // GET /api/chat/sessions - Get all chat sessions for the customer
 router.get('/sessions', async (req, res, next) => {

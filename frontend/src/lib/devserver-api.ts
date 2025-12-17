@@ -9,8 +9,20 @@ export interface DevServerStatus {
   lastActivity: string | null
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+/**
+ * Helper to append userId query param to URL if provided
+ */
+function appendUserIdParam(url: string, userId?: string | null): string {
+  if (!userId) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}userId=${encodeURIComponent(userId)}`
+}
+
+async function fetchWithAuth(url: string, options: RequestInit = {}, userId?: string | null) {
+  // Append userId query param if provided
+  const finalUrl = appendUserIdParam(url, userId)
+  
+  const response = await fetch(`${API_BASE_URL}${finalUrl}`, {
     ...options,
     credentials: 'include',
     headers: {
@@ -27,24 +39,24 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   return response.json()
 }
 
-export async function getDevServerStatus(): Promise<{ status: DevServerStatus | 'not_started' }> {
-  return fetchWithAuth('/api/devserver/status')
+export async function getDevServerStatus(userId?: string | null): Promise<{ status: DevServerStatus | 'not_started' }> {
+  return fetchWithAuth('/api/devserver/status', {}, userId)
 }
 
-export async function startDevServer(): Promise<{
+export async function startDevServer(userId?: string | null): Promise<{
   port: number
   url: string
   status: string
 }> {
   return fetchWithAuth('/api/devserver/start', {
     method: 'POST',
-  })
+  }, userId)
 }
 
-export async function stopDevServer(): Promise<{ status: string }> {
+export async function stopDevServer(userId?: string | null): Promise<{ status: string }> {
   return fetchWithAuth('/api/devserver/stop', {
     method: 'POST',
-  })
+  }, userId)
 }
 
 

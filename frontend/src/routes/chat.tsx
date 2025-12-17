@@ -10,6 +10,7 @@ import { z } from 'zod'
 
 const chatSearchSchema = z.object({
   sessionId: z.string().optional(),
+  userId: z.string().optional(),
 })
 
 export const Route = createFileRoute('/chat')({
@@ -21,15 +22,19 @@ function ChatPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const currentSessionId = search.sessionId || null
+  const viewAsUserId = search.userId || null
 
   const { data: sessionsData, isLoading } = useQuery({
-    queryKey: ['chatSessions'],
-    queryFn: getChatSessions,
+    queryKey: ['chatSessions', viewAsUserId],
+    queryFn: () => getChatSessions(viewAsUserId),
   })
 
   const handleSessionSelect = (sessionId: string | null) => {
     navigate({
-      search: { sessionId: sessionId || undefined },
+      search: { 
+        sessionId: sessionId || undefined,
+        userId: viewAsUserId || undefined,
+      },
       replace: true,
     })
   }
@@ -53,8 +58,9 @@ function ChatPage() {
             <SessionSidebar
               currentSessionId={currentSessionId}
               onSessionSelect={handleSessionSelect}
+              viewAsUserId={viewAsUserId}
             />
-            <ChatInterface sessionId={currentSessionId} />
+            <ChatInterface sessionId={currentSessionId} viewAsUserId={viewAsUserId} />
           </>
         )}
       </div>
