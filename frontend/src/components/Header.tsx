@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router'
-
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Home, Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings } from 'lucide-react'
+import { Home, Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings, Play, Square, ExternalLink, Loader2 } from 'lucide-react'
 import { useSession, authClient } from '@/lib/auth'
+import { getDevServerStatus, startDevServer, stopDevServer } from '@/lib/devserver-api'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,6 +18,28 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
   const { data: session } = useSession()
+  const queryClient = useQueryClient()
+
+  const { data: serverStatusData, isLoading: isLoadingStatus } = useQuery({
+    queryKey: ['devServerStatus'],
+    queryFn: getDevServerStatus,
+    enabled: !!session?.user,
+    refetchInterval: 5000,
+  })
+
+  const startServerMutation = useMutation({
+    mutationFn: startDevServer,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
+    },
+  })
+
+  const stopServerMutation = useMutation({
+    mutationFn: stopDevServer,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
+    },
+  })
 
   const handleSignOut = async () => {
     await authClient.signOut()
@@ -26,6 +49,11 @@ export default function Header() {
   const getUserInitials = (email: string) => {
     return email.slice(0, 2).toUpperCase()
   }
+
+  const status = serverStatusData?.status
+  const isRunning = typeof status !== 'string' && status?.status === 'running'
+  const isStarting = typeof status !== 'string' && status?.status === 'starting'
+  const serverPort = typeof status !== 'string' ? status?.port : null
 
   return (
     <>
@@ -45,9 +73,60 @@ export default function Header() {
           </h1>
         </div>
 
-        {/* User Profile Dropdown */}
-        {session?.user && (
-          <DropdownMenu>
+        <div className="flex items-center gap-4">
+          {session?.user && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-stone-800 border-stone-600 hover:bg-stone-100"
+                onClick={() => {
+                  if (serverPort) {
+                    window.open(`http://localhost:${serverPort}`, '_blank')
+                  }
+                }}
+                disabled={!isRunning || !serverPort}
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Staging Site
+              </Button>
+
+              {isRunning ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => stopServerMutation.mutate()}
+                  disabled={stopServerMutation.isPending}
+                >
+                  {stopServerMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Square className="mr-2 h-4 w-4" />
+                  )}
+                  Stop Server
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => startServerMutation.mutate()}
+                  disabled={startServerMutation.isPending || isStarting}
+                >
+                  {(startServerMutation.isPending || isStarting) ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 h-4 w-4" />
+                  )}
+                  {isStarting ? 'Starting...' : 'Start Server'}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* User Profile Dropdown */}
+          {session?.user && (
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -76,7 +155,8 @@ export default function Header() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
+          )}
+        </div>
 
         {/* Sign In Button (when not authenticated) */}
         {!session?.user && (
@@ -105,19 +185,6 @@ export default function Header() {
         </div>
 
         <nav className="flex-1 p-4 overflow-y-auto">
-          <Link
-            to="/"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
-            }}
-          >
-            <Home size={20} />
-            <span className="font-medium">Home</span>
-          </Link>
-
           {/* Auth-Protected Links */}
           {session?.user && (
             <>

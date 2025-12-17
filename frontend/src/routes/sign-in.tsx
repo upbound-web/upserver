@@ -57,10 +57,10 @@ function SignInPage() {
     defaultValues: { code: '' },
   })
 
-  // Redirect authenticated users to dashboard
+  // Redirect authenticated users to chat
   useEffect(() => {
     if (session?.user) {
-      navigate({ to: '/dashboard' })
+      navigate({ to: '/chat' })
     }
   }, [session, navigate])
 
@@ -94,8 +94,8 @@ function SignInPage() {
       return
     }
 
-    // Success - redirect to dashboard
-    navigate({ to: '/dashboard' })
+    // Success - redirect to chat
+    navigate({ to: '/chat' })
   }
 
   const handleBackToEmail = () => {
