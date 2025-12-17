@@ -61,8 +61,7 @@ function SitesPage() {
   const queryClient = useQueryClient()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingSite, setEditingSite] = useState<Site | null>(null)
-  const [deletingSite, setDeletingSite] = useState<Site | null>(null)
-
+  
   const { data: sitesData, isLoading } = useQuery({
     queryKey: ['adminSites'],
     queryFn: getSites,
@@ -74,7 +73,7 @@ function SitesPage() {
   })
 
   const createForm = useForm<SiteFormData>({
-    resolver: zodResolver(siteSchema),
+    resolver: zodResolver(siteSchema) as any,
     defaultValues: {
       userId: '',
       name: '',
@@ -86,7 +85,7 @@ function SitesPage() {
   })
 
   const updateForm = useForm<SiteFormData>({
-    resolver: zodResolver(siteSchema),
+    resolver: zodResolver(siteSchema) as any,
   })
 
   const createMutation = useMutation({
@@ -112,7 +111,6 @@ function SitesPage() {
     mutationFn: (id: string) => deleteSite(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminSites'] })
-      setDeletingSite(null)
     },
   })
 

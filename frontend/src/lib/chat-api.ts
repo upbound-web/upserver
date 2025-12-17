@@ -31,8 +31,8 @@ export interface Message {
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
   // Only set Content-Type for non-FormData requests
   const isFormData = options.body instanceof FormData
-  const headers: HeadersInit = {
-    ...options.headers,
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
   }
 
   if (!isFormData) {

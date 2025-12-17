@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { RequireAdmin } from '@/lib/route-guards'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings, Users, Globe } from 'lucide-react'
+import { Users, Globe } from 'lucide-react'
 
 export const Route = createFileRoute('/admin')({
   component: AdminPage,

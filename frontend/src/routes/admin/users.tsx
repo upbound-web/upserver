@@ -71,7 +71,7 @@ function UsersPage() {
   })
 
   const createForm = useForm<UserFormData>({
-    resolver: zodResolver(userSchema),
+    resolver: zodResolver(userSchema) as any,
     defaultValues: {
       name: '',
       email: '',
@@ -80,7 +80,7 @@ function UsersPage() {
   })
 
   const updateForm = useForm<UserFormData>({
-    resolver: zodResolver(userSchema),
+    resolver: zodResolver(userSchema) as any,
   })
 
   const createMutation = useMutation({

@@ -9,7 +9,6 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isCustomer = message.role === "customer";
-  const isAssistant = message.role === "assistant";
   const isSystem = message.role === "system";
 
   const formatTime = (dateString: string) => {
