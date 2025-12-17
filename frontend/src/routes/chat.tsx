@@ -1,28 +1,43 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { RequireAuth } from '@/lib/route-guards'
 import { SessionSidebar } from '@/components/chat/SessionSidebar'
 import { ChatInterface } from '@/components/chat/ChatInterface'
 import { useQuery } from '@tanstack/react-query'
 import { getChatSessions } from '@/lib/chat-api'
 import { Loader2 } from 'lucide-react'
+import { z } from 'zod'
+
+const chatSearchSchema = z.object({
+  sessionId: z.string().optional(),
+})
 
 export const Route = createFileRoute('/chat')({
+  validateSearch: chatSearchSchema,
   component: ChatPage,
 })
 
 function ChatPage() {
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const search = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+  const currentSessionId = search.sessionId || null
 
   const { data: sessionsData, isLoading } = useQuery({
     queryKey: ['chatSessions'],
     queryFn: getChatSessions,
   })
 
+  const handleSessionSelect = (sessionId: string | null) => {
+    navigate({
+      search: { sessionId: sessionId || undefined },
+      replace: true,
+    })
+  }
+
   // Auto-select first session if available and none selected
   useEffect(() => {
     if (!currentSessionId && sessionsData?.sessions && sessionsData.sessions.length > 0) {
-      setCurrentSessionId(sessionsData.sessions[0].id)
+      handleSessionSelect(sessionsData.sessions[0].id)
     }
   }, [sessionsData, currentSessionId])
 
@@ -37,7 +52,7 @@ function ChatPage() {
           <>
             <SessionSidebar
               currentSessionId={currentSessionId}
-              onSessionSelect={setCurrentSessionId}
+              onSessionSelect={handleSessionSelect}
             />
             <ChatInterface sessionId={currentSessionId} />
           </>

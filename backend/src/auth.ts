@@ -18,6 +18,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: false, // We only want OTP
   },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+      },
+    },
+  },
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {

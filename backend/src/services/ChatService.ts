@@ -58,6 +58,14 @@ export class ChatService {
     const chatSession = session[0];
     const claudeSessionId = chatSession.claudeSessionId || undefined;
 
+    // Set title if it's the first message
+    if (!chatSession.title) {
+      const title = content.length > 50 ? content.slice(0, 50) + '...' : content;
+      await db.update(chatSessions).set({ title }).where(eq(chatSessions.id, sessionId));
+    }
+
+
+
     // Store customer message
     const msgId = nanoid();
     await db.insert(messages).values({
@@ -104,9 +112,9 @@ export class ChatService {
     if (returnedSessionId && returnedSessionId !== claudeSessionId) {
       await db
         .update(chatSessions)
-        .set({ 
+        .set({
           claudeSessionId: returnedSessionId,
-          updatedAt: new Date() 
+          updatedAt: new Date()
         })
         .where(eq(chatSessions.id, sessionId));
     }
@@ -161,11 +169,11 @@ export class ChatService {
   ): AsyncGenerator<
     | { type: 'text'; text: string }
     | {
-        type: 'done';
-        flagged: boolean;
-        filesModified?: string[];
-        claudeSessionId?: string;
-      }
+      type: 'done';
+      flagged: boolean;
+      filesModified?: string[];
+      claudeSessionId?: string;
+    }
     | { type: 'error'; message: string },
     void,
     void
@@ -187,6 +195,12 @@ export class ChatService {
 
     const chatSession = session[0];
     const claudeSessionId = chatSession.claudeSessionId || undefined;
+
+    // Set title if it's the first message
+    if (!chatSession.title) {
+      const title = content.length > 50 ? content.slice(0, 50) + '...' : content;
+      await db.update(chatSessions).set({ title }).where(eq(chatSessions.id, sessionId));
+    }
 
     // Store customer message
     const msgId = nanoid();

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useSession } from '@/lib/auth'
 import { RequireAuth } from '@/lib/route-guards'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -12,8 +12,6 @@ import {
 import { publishSite, getPublishStatus } from '@/lib/publish-api'
 import { getCustomerProfile } from '@/lib/customer-api'
 import { getChatSessions } from '@/lib/chat-api'
-import { SessionSidebar } from '@/components/chat/SessionSidebar'
-import { ChatInterface } from '@/components/chat/ChatInterface'
 import {
   Card,
   CardContent,
@@ -22,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, Play, Square, ExternalLink, AlertCircle, Globe, Rocket } from 'lucide-react'
+import { Loader2, Play, Square, ExternalLink, AlertCircle, Globe, Rocket, MessageSquare } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export const Route = createFileRoute('/dashboard')({
@@ -32,7 +30,6 @@ export const Route = createFileRoute('/dashboard')({
 function DashboardPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
 
@@ -56,12 +53,6 @@ function DashboardPage() {
     queryKey: ['chatSessions'],
     queryFn: getChatSessions,
   })
-
-  useEffect(() => {
-    if (!currentSessionId && sessionsData?.sessions?.length) {
-      setCurrentSessionId(sessionsData.sessions[0].id)
-    }
-  }, [sessionsData, currentSessionId])
 
   const startMutation = useMutation({
     mutationFn: startDevServer,
@@ -123,36 +114,7 @@ function DashboardPage() {
             <CardDescription>Welcome back, {session?.user?.email}!</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-stone-600 dark:text-stone-400">
-              You are successfully authenticated with Better Auth magic link.
-            </p>
-            {session?.user && (
-              <div className="mt-4 p-4 bg-stone-100 dark:bg-stone-800 rounded-lg">
-                <h3 className="font-semibold mb-2">User Information</h3>
-                <dl className="space-y-1 text-sm">
-                  <div className="flex gap-2">
-                    <dt className="font-medium">Email:</dt>
-                    <dd>{session.user.email}</dd>
-                  </div>
-                  {session.user.name && (
-                    <div className="flex gap-2">
-                      <dt className="font-medium">Name:</dt>
-                      <dd>{session.user.name}</dd>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <dt className="font-medium">User ID:</dt>
-                    <dd className="font-mono text-xs">{session.user.id}</dd>
-                  </div>
-                  {customerData?.customer?.stagingPort && (
-                    <div className="flex gap-2">
-                      <dt className="font-medium">Staging Port:</dt>
-                      <dd className="font-mono text-xs">{customerData.customer.stagingPort}</dd>
-                    </div>
-                  )}
-                </dl>
-              </div>
-            )}
+            {/* Debug info removed */}
           </CardContent>
         </Card>
 
@@ -253,12 +215,12 @@ function DashboardPage() {
                         <div className="mt-1">
                           URL:{' '}
                           <a
-                            href={`http://localhost:${status.port}`}
+                            href={stagingUrl ? `https://${stagingUrl}` : `http://localhost:${status.port}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline inline-flex items-center gap-1"
                           >
-                            http://localhost:{status.port}
+                            {stagingUrl ? `https://${stagingUrl}` : `http://localhost:${status.port}`}
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </div>
@@ -334,16 +296,47 @@ function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="min-h-[60vh]">
+        <Card className="min-h-[40vh]">
           <CardHeader>
-            <CardTitle>Chat</CardTitle>
-            <CardDescription>Request changes and track conversations</CardDescription>
+            <CardTitle>Latest Chats</CardTitle>
+            <CardDescription>Recent conversations with the AI assistant</CardDescription>
           </CardHeader>
-          <CardContent className="p-0 border-t border-stone-200 dark:border-stone-800">
-            <div className="flex flex-col md:flex-row h-[60vh]">
-              <SessionSidebar currentSessionId={currentSessionId} onSessionSelect={setCurrentSessionId} />
-              <ChatInterface sessionId={currentSessionId} />
-            </div>
+          <CardContent>
+            {sessionsData?.sessions && sessionsData.sessions.length > 0 ? (
+              <div className="space-y-2">
+                {sessionsData.sessions.slice(0, 5).map((session) => (
+                  <Link
+                    key={session.id}
+                    to="/chat"
+                    search={{ sessionId: session.id }}
+                    className="flex items-center justify-between p-3 rounded-lg border border-stone-200 dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate text-stone-900 dark:text-stone-100">
+                        {session.title || 'New Chat'}
+                      </p>
+                      <p className="text-xs text-stone-500 truncate">
+                        {new Date(session.updatedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-stone-400 group-hover:text-primary transition-colors" />
+                  </Link>
+                ))}
+                <div className="pt-2">
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to="/chat">View All Chats</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-stone-500">
+                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No chats yet</p>
+                <Button variant="link" asChild className="mt-2">
+                  <Link to="/chat">Start a new chat</Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

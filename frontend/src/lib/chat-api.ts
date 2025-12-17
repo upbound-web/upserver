@@ -12,6 +12,7 @@ export function getImageUrl(imagePath: string): string {
 export interface ChatSession {
   id: string
   customerId: string
+  title: string | null
   status: 'active' | 'closed'
   createdAt: string
   updatedAt: string
@@ -33,7 +34,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const headers: HeadersInit = {
     ...options.headers,
   }
-  
+
   if (!isFormData) {
     headers['Content-Type'] = 'application/json'
   }
@@ -97,11 +98,11 @@ export async function sendMessage(
 export type StreamEvent =
   | { type: 'text'; text: string }
   | {
-      type: 'done'
-      flagged: boolean
-      filesModified: string[]
-      claudeSessionId?: string
-    }
+    type: 'done'
+    flagged: boolean
+    filesModified: string[]
+    claudeSessionId?: string
+  }
   | { type: 'error'; message: string }
 
 /**

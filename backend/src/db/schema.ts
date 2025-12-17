@@ -50,6 +50,7 @@ export const customers = sqliteTable('customers', {
 export const chatSessions = sqliteTable('chat_sessions', {
   id: text('id').primaryKey(),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  title: text('title'),
   status: text('status', { enum: ['active', 'closed'] }).notNull().default('active'),
   claudeSessionId: text('claude_session_id'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),

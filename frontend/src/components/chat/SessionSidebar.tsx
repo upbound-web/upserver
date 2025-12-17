@@ -87,14 +87,14 @@ export function SessionSidebar({ currentSessionId, onSessionSelect }: SessionSid
                   'w-full text-left p-3 rounded-lg mb-1 transition-colors',
                   'hover:bg-stone-100 dark:hover:bg-stone-800',
                   currentSessionId === session.id &&
-                    'bg-stone-200 dark:bg-stone-800 border border-stone-300 dark:border-stone-700'
+                  'bg-stone-200 dark:bg-stone-800 border border-stone-300 dark:border-stone-700'
                 )}
               >
                 <div className="flex items-start gap-2">
                   <MessageSquare className="h-4 w-4 mt-0.5 text-stone-500 dark:text-stone-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
-                      Chat {sessions.indexOf(session) + 1}
+                      {session.title || 'New Chat'}
                     </div>
                     <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
                       {formatDate(session.updatedAt)}
