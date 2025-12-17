@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Home, Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings, Play, Square, ExternalLink, Loader2 } from 'lucide-react'
+import { Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings, Play, Square, ExternalLink, Loader2 } from 'lucide-react'
 import { useSession, authClient } from '@/lib/auth'
 import { getDevServerStatus, startDevServer, stopDevServer } from '@/lib/devserver-api'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ export default function Header() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
 
-  const { data: serverStatusData, isLoading: isLoadingStatus } = useQuery({
+  const { data: serverStatusData } = useQuery({
     queryKey: ['devServerStatus'],
     queryFn: getDevServerStatus,
     enabled: !!session?.user,
