@@ -35,7 +35,7 @@ function DashboardPage() {
 
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['devServerStatus'],
-    queryFn: getDevServerStatus,
+    queryFn: () => getDevServerStatus(),
     refetchInterval: 5000,
   })
 
@@ -51,18 +51,18 @@ function DashboardPage() {
 
   const { data: sessionsData } = useQuery({
     queryKey: ['chatSessions'],
-    queryFn: getChatSessions,
+    queryFn: () => getChatSessions(),
   })
 
   const startMutation = useMutation({
-    mutationFn: startDevServer,
+    mutationFn: () => startDevServer(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
     },
   })
 
   const stopMutation = useMutation({
-    mutationFn: stopDevServer,
+    mutationFn: () => stopDevServer(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
     },
