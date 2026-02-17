@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings, Play, Square, ExternalLink, Loader2 } from 'lucide-react'
 import { useSession, authClient } from '@/lib/auth'
 import { getDevServerStatus, startDevServer, stopDevServer } from '@/lib/devserver-api'
+import { getCustomerProfile } from '@/lib/customer-api'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -37,6 +38,14 @@ export default function Header() {
     refetchInterval: 5000,
     retry: false,
   })
+
+  const { data: customerData } = useQuery({
+    queryKey: ['customerProfile'],
+    queryFn: getCustomerProfile,
+    enabled: !!session?.user,
+  })
+
+  const stagingUrl = customerData?.customer?.stagingUrl || null
 
   const startServerMutation = useMutation({
     mutationFn: () => startDevServer(viewAsUserId),
@@ -92,11 +101,13 @@ export default function Header() {
                 size="sm"
                 className="text-stone-800 border-stone-600 hover:bg-stone-100"
                 onClick={() => {
-                  if (serverPort) {
+                  if (stagingUrl) {
+                    window.open(`https://${stagingUrl}`, '_blank')
+                  } else if (serverPort) {
                     window.open(`http://localhost:${serverPort}`, '_blank')
                   }
                 }}
-                disabled={!isRunning || !serverPort}
+                disabled={!isRunning || (!stagingUrl && !serverPort)}
               >
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Staging Site
