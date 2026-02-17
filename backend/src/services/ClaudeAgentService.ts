@@ -266,14 +266,15 @@ SAFETY GUIDELINES:
     imagePaths?: string[]
   ): Promise<{
     response: string;
-    flagged: boolean;
     filesModified?: string[];
     claudeSessionId?: string;
+    agentCompletedSuccessfully: boolean;
+    agentHadError: boolean;
   }> {
     const responseMessages: string[] = [];
     const filesModified: string[] = [];
-    let flagged = false;
     let agentCompletedSuccessfully = false;
+    let agentHadError = false;
     let capturedSessionId: string | undefined = claudeSessionId;
 
     try {
@@ -289,27 +290,18 @@ SAFETY GUIDELINES:
           capturedSessionId = event.sessionId;
         } else if (event.type === "text") {
           responseMessages.push(event.text);
-
-          const textLower = event.text.toLowerCase();
-          if (
-            textLower.includes("flagged for review") ||
-            textLower.includes("developer involvement")
-          ) {
-            flagged = true;
-          }
         } else if (event.type === "fileEdit") {
           filesModified.push(event.path);
         } else if (event.type === "result") {
           if (event.subtype === "success") {
             agentCompletedSuccessfully = true;
           } else {
-            flagged = true;
             responseMessages.push(
               "\n\nNote: The task encountered some issues and may need review."
             );
           }
         } else if (event.type === "error") {
-          flagged = true;
+          agentHadError = true;
           responseMessages.push(event.message);
         }
       }
@@ -317,9 +309,10 @@ SAFETY GUIDELINES:
       if (agentCompletedSuccessfully && responseMessages.length > 0) {
         return {
           response: responseMessages.join("\n\n"),
-          flagged,
           filesModified: filesModified.length > 0 ? filesModified : undefined,
           claudeSessionId: capturedSessionId,
+          agentCompletedSuccessfully,
+          agentHadError,
         };
       }
 
@@ -327,9 +320,10 @@ SAFETY GUIDELINES:
         response:
           responseMessages.join("\n\n") ||
           "Request processed, but no response was generated.",
-        flagged,
         filesModified: filesModified.length > 0 ? filesModified : undefined,
         claudeSessionId: capturedSessionId,
+        agentCompletedSuccessfully,
+        agentHadError,
       };
     } catch (error) {
       console.error("Claude Agent error:", error);
@@ -362,10 +356,10 @@ SAFETY GUIDELINES:
         response:
           errorMessage +
           " Please try again or contact support if the issue persists.",
-        flagged: true,
         claudeSessionId: capturedSessionId,
+        agentCompletedSuccessfully: false,
+        agentHadError: true,
       };
     }
   }
 }
-

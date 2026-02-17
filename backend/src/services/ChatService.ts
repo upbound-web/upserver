@@ -4,6 +4,8 @@ import { eq, desc } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { ClaudeAgentService } from './ClaudeAgentService.js';
 import { NotificationService } from './NotificationService.js';
+import { RequestTriageService } from './RequestTriageService.js';
+import { ReviewRequestService } from './ReviewRequestService.js';
 
 export class ChatService {
   static async createSession(customerId: string) {
@@ -36,6 +38,20 @@ export class ChatService {
       .from(messages)
       .where(eq(messages.sessionId, sessionId))
       .orderBy(messages.createdAt);
+  }
+
+  static async getSessionMessagesForCustomer(sessionId: string, customerId: string) {
+    const session = await db
+      .select()
+      .from(chatSessions)
+      .where(eq(chatSessions.id, sessionId))
+      .limit(1);
+
+    if (!session.length || session[0].customerId !== customerId) {
+      return null;
+    }
+
+    return this.getSessionMessages(sessionId);
   }
 
   static async sendMessage(
@@ -99,7 +115,13 @@ export class ChatService {
     }));
 
     // Call Claude Agent Service with claudeSessionId
-    const { response, flagged, claudeSessionId: returnedSessionId } = await ClaudeAgentService.processRequest(
+    const {
+      response,
+      filesModified,
+      claudeSessionId: returnedSessionId,
+      agentCompletedSuccessfully,
+      agentHadError,
+    } = await ClaudeAgentService.processRequest(
       customerId,
       customer.siteFolder,
       content,
@@ -107,6 +129,14 @@ export class ChatService {
       claudeSessionId,
       imagePaths
     );
+
+    const triage = RequestTriageService.evaluate({
+      request: content,
+      filesModified,
+      agentCompletedSuccessfully,
+      agentHadError,
+    });
+    const flagged = triage.decision === 'flag';
 
     // Update session with claudeSessionId if it was returned (for new sessions)
     if (returnedSessionId && returnedSessionId !== claudeSessionId) {
@@ -129,6 +159,17 @@ export class ChatService {
       flagged,
       createdAt: new Date(),
     });
+
+    if (flagged) {
+      await ReviewRequestService.createFromTriage({
+        customerId: customer.id,
+        sessionId,
+        customerMessageId: msgId,
+        assistantMessageId: responseId,
+        requestContent: content,
+        triage,
+      });
+    }
 
     // Notify developer if flagged
     if (flagged) {
@@ -240,7 +281,8 @@ export class ChatService {
 
     const responseMessages: string[] = [];
     const filesModified: string[] = [];
-    let flagged = false;
+    let agentCompletedSuccessfully = false;
+    let agentHadError = false;
     let returnedSessionId: string | undefined = claudeSessionId;
 
     try {
@@ -258,25 +300,18 @@ export class ChatService {
           responseMessages.push(event.text);
           // Stream the text chunk to caller
           yield { type: 'text', text: event.text };
-
-          const textLower = event.text.toLowerCase();
-          if (
-            textLower.includes('flagged for review') ||
-            textLower.includes('developer involvement')
-          ) {
-            flagged = true;
-          }
         } else if (event.type === 'fileEdit') {
           filesModified.push(event.path);
         } else if (event.type === 'result') {
-          if (event.subtype !== 'success') {
-            flagged = true;
+          if (event.subtype === 'success') {
+            agentCompletedSuccessfully = true;
+          } else {
             responseMessages.push(
               '\n\nNote: The task encountered some issues and may need review.'
             );
           }
         } else if (event.type === 'error') {
-          flagged = true;
+          agentHadError = true;
           responseMessages.push(event.message);
           // Forward error to caller and stop streaming
           yield { type: 'error', message: event.message };
@@ -287,6 +322,13 @@ export class ChatService {
       const fullResponse =
         responseMessages.join('\n\n') ||
         'Request processed, but no response was generated.';
+      const triage = RequestTriageService.evaluate({
+        request: content,
+        filesModified,
+        agentCompletedSuccessfully,
+        agentHadError,
+      });
+      const flagged = triage.decision === 'flag';
 
       // Update session with claudeSessionId if it was returned (for new sessions)
       if (returnedSessionId && returnedSessionId !== claudeSessionId) {
@@ -309,6 +351,17 @@ export class ChatService {
         flagged,
         createdAt: new Date(),
       });
+
+      if (flagged) {
+        await ReviewRequestService.createFromTriage({
+          customerId: customer.id,
+          sessionId,
+          customerMessageId: msgId,
+          assistantMessageId: responseId,
+          requestContent: content,
+          triage,
+        });
+      }
 
       // Notify developer if flagged
       if (flagged) {

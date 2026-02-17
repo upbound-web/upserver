@@ -28,6 +28,24 @@ export async function getPublishStatus(): Promise<{ lastPublish?: { commitHash: 
   return fetchWithAuth('/api/publish/status')
 }
 
+export interface PublishHistoryItem {
+  commitHash: string
+  timestamp: number
+  message: string
+}
+
+export async function getPublishHistory(): Promise<{ history: PublishHistoryItem[] }> {
+  return fetchWithAuth('/api/publish/history')
+}
+
+export async function rollbackToCommit(
+  commitHash: string
+): Promise<{ success: boolean; message: string; commitHash?: string; rolledBackTo?: string }> {
+  return fetchWithAuth('/api/publish/rollback', {
+    method: 'POST',
+    body: JSON.stringify({ commitHash }),
+  })
+}
 
 
 

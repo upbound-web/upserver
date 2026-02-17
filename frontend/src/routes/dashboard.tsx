@@ -1,16 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useSession } from '@/lib/auth'
 import { RequireAuth } from '@/lib/route-guards'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getDevServerStatus,
+  getDevServerPreflight,
   startDevServer,
   stopDevServer,
   type DevServerStatus,
 } from '@/lib/devserver-api'
-import { publishSite, getPublishStatus } from '@/lib/publish-api'
-import { getCustomerProfile } from '@/lib/customer-api'
+import { publishSite, getPublishHistory, getPublishStatus, rollbackToCommit } from '@/lib/publish-api'
+import { approveReviewRequest, getCustomerProfile, getCustomerReviewRequests } from '@/lib/customer-api'
 import { getChatSessions } from '@/lib/chat-api'
 import {
   Card,
@@ -22,6 +23,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Loader2, Play, Square, ExternalLink, AlertCircle, Globe, Rocket, MessageSquare } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 export const Route = createFileRoute('/dashboard')({
   component: DashboardPage,
@@ -32,11 +41,22 @@ function DashboardPage() {
   const queryClient = useQueryClient()
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [rollbackError, setRollbackError] = useState<string | null>(null)
+  const [rollbackSuccess, setRollbackSuccess] = useState<string | null>(null)
+  const [selectedRollbackCommit, setSelectedRollbackCommit] = useState<string | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [startPendingMs, setStartPendingMs] = useState(0)
 
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['devServerStatus'],
     queryFn: () => getDevServerStatus(),
     refetchInterval: 5000,
+  })
+
+  const { data: preflightData } = useQuery({
+    queryKey: ['devServerPreflight'],
+    queryFn: () => getDevServerPreflight(),
+    refetchInterval: 15000,
   })
 
   const { data: customerData } = useQuery({
@@ -49,6 +69,17 @@ function DashboardPage() {
     queryFn: getPublishStatus,
   })
 
+  const { data: publishHistoryData, refetch: refetchPublishHistory } = useQuery({
+    queryKey: ['publishHistory'],
+    queryFn: getPublishHistory,
+  })
+
+  const { data: reviewRequestsData } = useQuery({
+    queryKey: ['customerReviewRequests'],
+    queryFn: getCustomerReviewRequests,
+    refetchInterval: 10000,
+  })
+
   const { data: sessionsData } = useQuery({
     queryKey: ['chatSessions'],
     queryFn: () => getChatSessions(),
@@ -57,7 +88,12 @@ function DashboardPage() {
   const startMutation = useMutation({
     mutationFn: () => startDevServer(),
     onSuccess: () => {
+      setStartPendingMs(0)
       queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerPreflight'] })
+    },
+    onError: () => {
+      setStartPendingMs(0)
     },
   })
 
@@ -65,6 +101,7 @@ function DashboardPage() {
     mutationFn: () => stopDevServer(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerPreflight'] })
     },
   })
 
@@ -74,6 +111,7 @@ function DashboardPage() {
       setPublishError(null)
       setPublishMessage(data.message || 'Your changes are now live! It may take a minute to update.')
       refetchPublishStatus()
+      refetchPublishHistory()
     },
     onError: (error: unknown) => {
       setPublishMessage(null)
@@ -81,10 +119,39 @@ function DashboardPage() {
     },
   })
 
+  const rollbackMutation = useMutation({
+    mutationFn: (commitHash: string) => rollbackToCommit(commitHash),
+    onSuccess: (data) => {
+      setRollbackError(null)
+      setRollbackSuccess(data.message || 'Rollback completed.')
+      refetchPublishStatus()
+      refetchPublishHistory()
+      queryClient.invalidateQueries({ queryKey: ['devServerPreflight'] })
+    },
+    onError: (error: unknown) => {
+      setRollbackSuccess(null)
+      setRollbackError(error instanceof Error ? error.message : 'Failed to roll back')
+    },
+  })
+
+  const approveQuoteMutation = useMutation({
+    mutationFn: (id: string) => approveReviewRequest(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customerReviewRequests'] })
+    },
+  })
+
   const status = statusData?.status === 'not_started' ? null : (statusData?.status as DevServerStatus | undefined)
   const isRunning = status?.status === 'running'
   const isStarting = status?.status === 'starting'
   const stagingUrl = customerData?.customer?.stagingUrl || null
+  const reviewRequests = reviewRequestsData?.reviewRequests || []
+  const quotedRequests = reviewRequests.filter((request) => request.status === 'quoted')
+
+  const onboardingKey = useMemo(() => {
+    const userId = session?.user?.id
+    return userId ? `upserver-onboarding-v1:${userId}` : null
+  }, [session?.user?.id])
 
   const handleStart = () => {
     startMutation.mutate()
@@ -100,13 +167,89 @@ function DashboardPage() {
     publishMutation.mutate()
   }
 
+  const handleRollback = (commitHash: string) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to roll back to this version? This will create a new rollback commit and publish it.'
+    )
+    if (!confirmed) return
+    setRollbackError(null)
+    setRollbackSuccess(null)
+    setSelectedRollbackCommit(commitHash)
+    rollbackMutation.mutate(commitHash)
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleString()
   }
 
+  const getFriendlyStartError = (raw: string) => {
+    const lower = raw.toLowerCase()
+    if (lower.includes('site folder not found')) {
+      return 'We couldn’t find your website files on the server yet. Please contact support and we’ll sort it quickly.'
+    }
+    if (lower.includes('configured port') && lower.includes('in use')) {
+      return 'Your staging server port is already in use right now. Give it a minute and try again, or contact support.'
+    }
+    if (lower.includes('dependency install failed')) {
+      return 'Your site needs a quick dependency setup before staging can run. Please contact support and we’ll fix it.'
+    }
+    if (lower.includes('no free ports')) {
+      return 'Staging is currently at capacity. Please try again shortly.'
+    }
+    return 'The staging server couldn’t start right now. Please try again, and if it keeps happening, contact support.'
+  }
+
+  useEffect(() => {
+    if (!onboardingKey) return
+    const alreadySeen = localStorage.getItem(onboardingKey)
+    setShowOnboarding(!alreadySeen)
+  }, [onboardingKey])
+
+  useEffect(() => {
+    if (!startMutation.isPending) return
+    const interval = window.setInterval(() => {
+      setStartPendingMs((ms) => ms + 1000)
+    }, 1000)
+    return () => window.clearInterval(interval)
+  }, [startMutation.isPending])
+
+  const startPhase = useMemo(() => {
+    if (!startMutation.isPending) return null
+    if (startPendingMs < 4_000) return 'Preparing your staging server...'
+    if (startPendingMs < 25_000) return 'Installing dependencies if needed...'
+    return 'Starting your website preview...'
+  }, [startMutation.isPending, startPendingMs])
+
   return (
     <RequireAuth>
+      <Dialog open={showOnboarding} onOpenChange={setShowOnboarding}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Welcome to UpServer</DialogTitle>
+            <DialogDescription>
+              Quick heads up: this is your spot to run staging, ask for edits, and publish changes when you’re happy.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-sm text-stone-700 dark:text-stone-300 space-y-2">
+            <p>1. Start your staging server</p>
+            <p>2. Ask for updates in chat using plain English</p>
+            <p>3. Preview in staging, then publish when ready</p>
+            <p>4. Bigger jobs get flagged and quoted in-app</p>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (onboardingKey) localStorage.setItem(onboardingKey, 'seen')
+                setShowOnboarding(false)
+              }}
+            >
+              Sweet, let’s go
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="container mx-auto p-6 space-y-6">
         <Card>
           <CardHeader>
@@ -115,6 +258,27 @@ function DashboardPage() {
           </CardHeader>
           <CardContent>
             {/* Debug info removed */}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Staging Readiness</CardTitle>
+            <CardDescription>Quick checks before you hit start</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm">
+            {preflightData ? (
+              <>
+                <div>Site files present: {preflightData.checks.siteFolderExists ? 'Yes' : 'No'}</div>
+                <div>Staging URL configured: {preflightData.checks.stagingUrlConfigured ? 'Yes' : 'No'}</div>
+                <div>Git remote connected: {preflightData.checks.gitRemoteConfigured ? 'Yes' : 'No'}</div>
+                <div>AI editing ready: {preflightData.checks.claudeReady ? 'Yes' : 'No'}</div>
+                <div>Server healthy now: {preflightData.checks.devServerHealthy ? 'Yes' : 'No'}</div>
+                <div>Local changes waiting to publish: {preflightData.checks.hasUncommittedChanges ? 'Yes' : 'No'}</div>
+              </>
+            ) : (
+              <p>Checking readiness...</p>
+            )}
           </CardContent>
         </Card>
 
@@ -275,9 +439,27 @@ function DashboardPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       {startMutation.error instanceof Error
-                        ? startMutation.error.message
-                        : 'Failed to start dev server'}
+                        ? getFriendlyStartError(startMutation.error.message)
+                        : 'Couldn’t start staging right now.'}
                     </AlertDescription>
+                  </Alert>
+                )}
+
+                {startMutation.isError &&
+                  startMutation.error instanceof Error &&
+                  (session?.user as { role?: string } | undefined)?.role === 'admin' && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Technical details (admin):</strong> {startMutation.error.message}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                {startPhase && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{startPhase}</AlertDescription>
                   </Alert>
                 )}
 
@@ -292,6 +474,102 @@ function DashboardPage() {
                   </Alert>
                 )}
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Bigger Jobs & Quotes</CardTitle>
+            <CardDescription>
+              Bigger requests land here so you can track updates and approve quotes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {reviewRequests.length === 0 ? (
+              <p className="text-sm text-stone-600 dark:text-stone-400">No flagged jobs at the moment.</p>
+            ) : (
+              reviewRequests.slice(0, 6).map((request) => (
+                <div
+                  key={request.id}
+                  className="rounded-lg border border-stone-200 dark:border-stone-800 p-3 space-y-2"
+                >
+                  <p className="text-sm line-clamp-2">{request.requestContent}</p>
+                  <div className="text-xs text-stone-500">
+                    Status: <strong>{request.status}</strong>
+                  </div>
+                  {request.quotedPriceCents !== null && (
+                    <div className="text-sm font-medium">
+                      Quote:{' '}
+                      {new Intl.NumberFormat('en-AU', {
+                        style: 'currency',
+                        currency: 'AUD',
+                      }).format(request.quotedPriceCents / 100)}
+                    </div>
+                  )}
+                  {request.quoteNote && (
+                    <p className="text-xs text-stone-600 dark:text-stone-300">{request.quoteNote}</p>
+                  )}
+                  {request.status === 'quoted' && (
+                    <Button
+                      size="sm"
+                      onClick={() => approveQuoteMutation.mutate(request.id)}
+                      disabled={approveQuoteMutation.isPending}
+                    >
+                      {approveQuoteMutation.isPending ? 'Approving...' : 'Approve Quote'}
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+            {quotedRequests.length > 0 && (
+              <p className="text-xs text-stone-500">
+                Nice one, you’ve got {quotedRequests.length} quote{quotedRequests.length > 1 ? 's' : ''} ready for approval.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Rollback</CardTitle>
+            <CardDescription>
+              Revert to one of your last 10 versions if something doesn’t look right.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {publishHistoryData?.history?.length ? (
+              publishHistoryData.history.map((item) => (
+                <div
+                  key={item.commitHash}
+                  className="rounded-lg border border-stone-200 dark:border-stone-800 p-3 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{item.message}</p>
+                    <p className="text-xs text-stone-500">
+                      {new Date(item.timestamp).toLocaleString()} • {item.commitHash.slice(0, 7)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRollback(item.commitHash)}
+                    disabled={rollbackMutation.isPending}
+                  >
+                    {rollbackMutation.isPending && selectedRollbackCommit === item.commitHash
+                      ? 'Rolling back...'
+                      : 'Rollback'}
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-stone-600 dark:text-stone-400">No commit history available yet.</p>
+            )}
+            {(rollbackError || rollbackSuccess) && (
+              <Alert variant={rollbackError ? 'destructive' : undefined}>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{rollbackError || rollbackSuccess}</AlertDescription>
+              </Alert>
             )}
           </CardContent>
         </Card>

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { RequireAdmin } from '@/lib/route-guards'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, Globe } from 'lucide-react'
+import { Users, Globe, Flag } from 'lucide-react'
 
 export const Route = createFileRoute('/admin')({
   component: AdminPage,
@@ -54,6 +54,25 @@ function AdminPage() {
                 <CardContent>
                   <p className="text-sm text-stone-600 dark:text-stone-400">
                     Create users, assign roles, and manage access to sites
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link to="/admin/requests">
+              <Card className="hover:bg-stone-50 dark:hover:bg-stone-900 transition-colors cursor-pointer h-full">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Flag className="h-6 w-6 text-stone-600 dark:text-stone-400" />
+                    <CardTitle>Flagged Requests</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Quote bigger changes and manage approvals
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-stone-600 dark:text-stone-400">
+                    Review flagged work, set one fixed price, and track completion
                   </p>
                 </CardContent>
               </Card>

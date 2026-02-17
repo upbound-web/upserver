@@ -72,8 +72,16 @@ router.get('/sessions/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const messages = await ChatService.getSessionMessages(req.params.id);
-    res.json({ messages });
+    const sessionMessages = await ChatService.getSessionMessagesForCustomer(
+      req.params.id,
+      customer.id
+    );
+
+    if (!sessionMessages) {
+      return res.status(404).json({ error: 'Chat session not found' });
+    }
+
+    res.json({ messages: sessionMessages });
   } catch (error) {
     next(error);
   }

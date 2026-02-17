@@ -67,6 +67,28 @@ export const messages = sqliteTable('messages', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
 
+export const reviewRequests = sqliteTable('review_requests', {
+  id: text('id').primaryKey(),
+  customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').notNull().references(() => chatSessions.id, { onDelete: 'cascade' }),
+  customerMessageId: text('customer_message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  assistantMessageId: text('assistant_message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  requestContent: text('request_content').notNull(),
+  decision: text('decision', { enum: ['auto', 'flag'] }).notNull(),
+  scope: text('scope', { enum: ['minor', 'major', 'uncertain'] }).notNull(),
+  confidencePct: integer('confidence_pct').notNull(),
+  reason: text('reason').notNull(),
+  triggers: text('triggers'),
+  quotedPriceCents: integer('quoted_price_cents'),
+  quoteNote: text('quote_note'),
+  quotedAt: integer('quoted_at', { mode: 'timestamp' }),
+  approvedAt: integer('approved_at', { mode: 'timestamp' }),
+  policyVersion: text('policy_version').notNull().default('v1'),
+  status: text('status', { enum: ['open', 'quoted', 'approved', 'rejected', 'completed'] }).notNull().default('open'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
 export const devServers = sqliteTable('dev_servers', {
   customerId: text('customer_id').primaryKey().references(() => customers.id, { onDelete: 'cascade' }),
   port: integer('port').notNull(),

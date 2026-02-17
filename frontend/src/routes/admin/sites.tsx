@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -61,6 +62,8 @@ function SitesPage() {
   const queryClient = useQueryClient()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingSite, setEditingSite] = useState<Site | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
   
   const { data: sitesData, isLoading } = useQuery({
     queryKey: ['adminSites'],
@@ -91,9 +94,13 @@ function SitesPage() {
   const createMutation = useMutation({
     mutationFn: (data: CreateSiteData) => createSite(data),
     onSuccess: () => {
+      setCreateError(null)
       queryClient.invalidateQueries({ queryKey: ['adminSites'] })
       setIsCreateOpen(false)
       createForm.reset()
+    },
+    onError: (error: unknown) => {
+      setCreateError(error instanceof Error ? error.message : 'Failed to create site')
     },
   })
 
@@ -101,9 +108,13 @@ function SitesPage() {
     mutationFn: ({ id, data }: { id: string; data: UpdateSiteData }) =>
       updateSite(id, data),
     onSuccess: () => {
+      setUpdateError(null)
       queryClient.invalidateQueries({ queryKey: ['adminSites'] })
       setEditingSite(null)
       updateForm.reset()
+    },
+    onError: (error: unknown) => {
+      setUpdateError(error instanceof Error ? error.message : 'Failed to save site')
     },
   })
 
@@ -116,6 +127,7 @@ function SitesPage() {
 
   const handleEdit = (site: Site) => {
     setEditingSite(site)
+    setUpdateError(null)
     updateForm.reset({
       userId: site.userId,
       name: site.name,
@@ -231,6 +243,11 @@ function SitesPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {createError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{createError}</AlertDescription>
+                  </Alert>
+                )}
                 <div>
                   <Label htmlFor="create-userId">User</Label>
                   <Select
@@ -289,7 +306,10 @@ function SitesPage() {
                     id="create-stagingPort"
                     type="number"
                     {...createForm.register('stagingPort', {
-                      valueAsNumber: true,
+                      setValueAs: (value) =>
+                        value === '' || value === null || value === undefined
+                          ? undefined
+                          : Number(value),
                     })}
                     placeholder="3000"
                   />
@@ -299,7 +319,10 @@ function SitesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={() => {
+                    setCreateError(null)
+                    setIsCreateOpen(false)
+                  }}
                 >
                   Cancel
                 </Button>
@@ -326,6 +349,11 @@ function SitesPage() {
                 <DialogDescription>Update site configuration</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {updateError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{updateError}</AlertDescription>
+                  </Alert>
+                )}
                 <div>
                   <Label htmlFor="edit-userId">User</Label>
                   <Select
@@ -384,7 +412,10 @@ function SitesPage() {
                     id="edit-stagingPort"
                     type="number"
                     {...updateForm.register('stagingPort', {
-                      valueAsNumber: true,
+                      setValueAs: (value) =>
+                        value === '' || value === null || value === undefined
+                          ? undefined
+                          : Number(value),
                     })}
                     placeholder="3000"
                   />
@@ -394,7 +425,10 @@ function SitesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setEditingSite(null)}
+                  onClick={() => {
+                    setUpdateError(null)
+                    setEditingSite(null)
+                  }}
                 >
                   Cancel
                 </Button>

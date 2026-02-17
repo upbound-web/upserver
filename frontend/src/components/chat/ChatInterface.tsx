@@ -14,8 +14,17 @@ interface ChatInterfaceProps {
   viewAsUserId?: string | null
 }
 
+const PROMPT_TEMPLATES = [
+  'Can you update our opening hours on the contact page?',
+  'Please change our phone number everywhere to 07 3000 0000.',
+  'Swap the hero image with this new one and keep the same layout.',
+  'Add a new testimonial for us near the bottom of the homepage.',
+  'Please tidy up any obvious typos on the services page.',
+]
+
 export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('')
+  const [showPromptTemplates, setShowPromptTemplates] = useState(false)
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [optimizedImages, setOptimizedImages] = useState<File[]>([])
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -279,6 +288,33 @@ export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
       {/* Input Area */}
       <div className="border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4">
         <div className="max-w-3xl mx-auto">
+          <div className="mb-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPromptTemplates((v) => !v)}
+              disabled={sendMessageMutation.isPending || isStreaming}
+            >
+              {showPromptTemplates ? 'Hide prompt ideas' : 'Show prompt ideas'}
+            </Button>
+          </div>
+          {showPromptTemplates && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {PROMPT_TEMPLATES.map((template) => (
+                <Button
+                  key={template}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setInputValue(template)}
+                  disabled={sendMessageMutation.isPending || isStreaming}
+                >
+                  {template.length > 38 ? `${template.slice(0, 38)}...` : template}
+                </Button>
+              ))}
+            </div>
+          )}
           {(sendMessageMutation.isError || streamError) && (
             <Alert variant="destructive" className="mb-3">
               <AlertCircle className="h-4 w-4" />
@@ -393,4 +429,3 @@ export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
     </div>
   )
 }
-

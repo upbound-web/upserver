@@ -32,6 +32,22 @@ router.get('/status', async (req, res, next) => {
   }
 });
 
+// GET /api/devserver/preflight - Readiness checks for customer staging workflow
+router.get('/preflight', async (req, res, next) => {
+  try {
+    const customer = await ChatService.getCustomerByUserId(req.user.id);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const preflight = await DevServerService.getPreflight(customer.id);
+    res.json(preflight);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/devserver/start - Start dev server
 router.post('/start', async (req, res, next) => {
   try {

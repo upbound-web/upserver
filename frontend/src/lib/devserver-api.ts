@@ -9,6 +9,19 @@ export interface DevServerStatus {
   lastActivity: string | null
 }
 
+export interface DevServerPreflight {
+  checks: {
+    siteFolderExists: boolean
+    devServerHealthy: boolean
+    stagingUrlConfigured: boolean
+    gitRemoteConfigured: boolean
+    hasUncommittedChanges: boolean
+    claudeReady: boolean
+  }
+  sitePath: string
+  status: DevServerStatus | null
+}
+
 /**
  * Helper to append userId query param to URL if provided
  */
@@ -53,12 +66,17 @@ export async function startDevServer(userId?: string | null): Promise<{
   }, userId)
 }
 
+export async function getDevServerPreflight(
+  userId?: string | null
+): Promise<DevServerPreflight> {
+  return fetchWithAuth('/api/devserver/preflight', {}, userId)
+}
+
 export async function stopDevServer(userId?: string | null): Promise<{ status: string }> {
   return fetchWithAuth('/api/devserver/stop', {
     method: 'POST',
   }, userId)
 }
-
 
 
 

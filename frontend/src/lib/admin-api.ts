@@ -149,5 +149,60 @@ export async function updateUser(id: string, data: UpdateUserData): Promise<{ us
   })
 }
 
+// ========== Review Requests / Quotes ==========
+
+export interface AdminReview {
+  id: string
+  customerId: string
+  sessionId: string
+  requestContent: string
+  decision: 'auto' | 'flag'
+  scope: 'minor' | 'major' | 'uncertain'
+  confidencePct: number
+  reason: string
+  triggers: string | null
+  quotedPriceCents: number | null
+  quoteNote: string | null
+  quotedAt: string | null
+  approvedAt: string | null
+  status: 'open' | 'quoted' | 'approved' | 'rejected' | 'completed'
+  policyVersion: string
+  createdAt: string
+  updatedAt: string
+  customer: {
+    id: string
+    name: string
+    userId: string
+  } | null
+  user: {
+    id: string
+    name: string
+    email: string
+  } | null
+}
+
+export async function getAdminReviews(): Promise<{ reviews: AdminReview[] }> {
+  return fetchWithAuth('/api/admin/reviews')
+}
+
+export async function quoteAdminReview(
+  id: string,
+  payload: { priceAud: number; note?: string }
+): Promise<{ review: AdminReview }> {
+  return fetchWithAuth(`/api/admin/reviews/${id}/quote`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateAdminReviewStatus(
+  id: string,
+  status: AdminReview['status']
+): Promise<{ review: AdminReview }> {
+  return fetchWithAuth(`/api/admin/reviews/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  })
+}
 
 

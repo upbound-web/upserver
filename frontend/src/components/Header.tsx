@@ -1,4 +1,4 @@
-import { Link, useSearch } from '@tanstack/react-router'
+import { Link, useSearch, useRouterState } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Menu, X, LogOut, User, LayoutDashboard, MessageSquare, Settings, Play, Square, ExternalLink, Loader2 } from 'lucide-react'
@@ -22,13 +22,20 @@ export default function Header() {
   
   // Get userId from route search params if present (for admin impersonation)
   const search = useSearch({ strict: false }) as { userId?: string }
-  const viewAsUserId = search?.userId || null
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const isAdminRoute = pathname.startsWith('/admin')
+  const canUseImpersonationContext = pathname.startsWith('/chat') || pathname.startsWith('/dashboard')
+  const viewAsUserId = canUseImpersonationContext ? (search?.userId || null) : null
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin'
+  const shouldUseCustomerServerControls =
+    !!session?.user && !isAdminRoute && (!isAdmin || !!viewAsUserId)
 
   const { data: serverStatusData } = useQuery({
     queryKey: ['devServerStatus', viewAsUserId],
     queryFn: () => getDevServerStatus(viewAsUserId),
-    enabled: !!session?.user,
+    enabled: shouldUseCustomerServerControls,
     refetchInterval: 5000,
+    retry: false,
   })
 
   const startServerMutation = useMutation({
@@ -78,7 +85,7 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          {session?.user && (
+          {shouldUseCustomerServerControls && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -122,7 +129,7 @@ export default function Header() {
                   ) : (
                     <Play className="mr-2 h-4 w-4" />
                   )}
-                  {isStarting ? 'Starting...' : 'Start Server'}
+                  {(startServerMutation.isPending || isStarting) ? 'Starting...' : 'Start Server'}
                 </Button>
               )}
             </div>

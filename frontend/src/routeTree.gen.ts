@@ -18,6 +18,7 @@ import { Route as DemoTanstackQueryRouteImport } from './routes/demo/tanstack-qu
 import { Route as AuthVerifyRouteImport } from './routes/auth/verify'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminSitesRouteImport } from './routes/admin/sites'
+import { Route as AdminRequestsRouteImport } from './routes/admin/requests'
 
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
@@ -64,6 +65,11 @@ const AdminSitesRoute = AdminSitesRouteImport.update({
   path: '/sites',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminRequestsRoute = AdminRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
   '/sign-in': typeof SignInRoute
+  '/admin/requests': typeof AdminRequestsRoute
   '/admin/sites': typeof AdminSitesRoute
   '/admin/users': typeof AdminUsersRoute
   '/auth/verify': typeof AuthVerifyRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
   '/sign-in': typeof SignInRoute
+  '/admin/requests': typeof AdminRequestsRoute
   '/admin/sites': typeof AdminSitesRoute
   '/admin/users': typeof AdminUsersRoute
   '/auth/verify': typeof AuthVerifyRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
   '/sign-in': typeof SignInRoute
+  '/admin/requests': typeof AdminRequestsRoute
   '/admin/sites': typeof AdminSitesRoute
   '/admin/users': typeof AdminUsersRoute
   '/auth/verify': typeof AuthVerifyRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/sign-in'
+    | '/admin/requests'
     | '/admin/sites'
     | '/admin/users'
     | '/auth/verify'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/sign-in'
+    | '/admin/requests'
     | '/admin/sites'
     | '/admin/users'
     | '/auth/verify'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/sign-in'
+    | '/admin/requests'
     | '/admin/sites'
     | '/admin/users'
     | '/auth/verify'
@@ -210,15 +222,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/requests': {
+      id: '/admin/requests'
+      path: '/requests'
+      fullPath: '/admin/requests'
+      preLoaderRoute: typeof AdminRequestsRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
+  AdminRequestsRoute: typeof AdminRequestsRoute
   AdminSitesRoute: typeof AdminSitesRoute
   AdminUsersRoute: typeof AdminUsersRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminRequestsRoute: AdminRequestsRoute,
   AdminSitesRoute: AdminSitesRoute,
   AdminUsersRoute: AdminUsersRoute,
 }

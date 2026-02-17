@@ -111,4 +111,123 @@ export class PublishService {
       return null;
     }
   }
+
+  static async getPublishHistory(customerSiteFolder: string, limit = 10) {
+    const sitePath = join(
+      process.env.SITES_DIR || '/home/jakedawson/upserver/sites',
+      customerSiteFolder
+    );
+
+    try {
+      const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+      const { stdout } = await execAsync(
+        `git log -n ${safeLimit} --format="%H|%at|%s"`,
+        { cwd: sitePath }
+      );
+
+      if (!stdout.trim()) {
+        return [];
+      }
+
+      return stdout
+        .trim()
+        .split('\n')
+        .map((line) => {
+          const [hash, timestamp, subject] = line.split('|');
+          return {
+            commitHash: hash,
+            timestamp: parseInt(timestamp, 10) * 1000,
+            message: subject,
+          };
+        });
+    } catch (error) {
+      console.error('Error getting publish history:', error);
+      return [];
+    }
+  }
+
+  static async rollbackToCommit(customerSiteFolder: string, targetCommitHash: string) {
+    const sitePath = join(
+      process.env.SITES_DIR || '/home/jakedawson/upserver/sites',
+      customerSiteFolder
+    );
+
+    try {
+      if (!targetCommitHash || !/^[a-f0-9]{7,40}$/i.test(targetCommitHash)) {
+        return { success: false, message: 'Invalid commit hash' };
+      }
+
+      const { stdout: dirtyOutput } = await execAsync('git status --porcelain', {
+        cwd: sitePath,
+      });
+      if (dirtyOutput.trim()) {
+        return {
+          success: false,
+          message:
+            'Rollback is blocked because there are unpublished local changes. Publish or clear local changes first.',
+        };
+      }
+
+      await execAsync(`git rev-parse --verify ${targetCommitHash}^{commit}`, {
+        cwd: sitePath,
+      });
+
+      const { stdout: currentHashOutput } = await execAsync('git rev-parse HEAD', {
+        cwd: sitePath,
+      });
+      const currentHash = currentHashOutput.trim();
+
+      if (currentHash === targetCommitHash) {
+        return {
+          success: false,
+          message: 'This version is already current. Nothing to roll back.',
+        };
+      }
+
+      await execAsync(`git restore --source ${targetCommitHash} --staged --worktree .`, {
+        cwd: sitePath,
+      });
+
+      const { stdout: stagedStatusOutput } = await execAsync('git status --porcelain', {
+        cwd: sitePath,
+      });
+      if (!stagedStatusOutput.trim()) {
+        return {
+          success: false,
+          message: 'Rollback produced no file changes.',
+        };
+      }
+
+      const timestamp = new Date().toISOString();
+      const rollbackMessage = `Rollback via UpServer [${timestamp}] to ${targetCommitHash.slice(0, 7)}`;
+      await execAsync(`git commit -m "${rollbackMessage}"`, { cwd: sitePath });
+
+      const { stdout: newHashOutput } = await execAsync('git rev-parse HEAD', {
+        cwd: sitePath,
+      });
+      const newCommitHash = newHashOutput.trim();
+
+      await execAsync('git push', { cwd: sitePath });
+
+      await NotificationService.notifyPublish({
+        customerId: customerSiteFolder,
+        message: `Rollback completed to ${targetCommitHash.slice(0, 7)}`,
+        commitHash: newCommitHash,
+      }).catch((err) => console.error('Notification error:', err));
+
+      return {
+        success: true,
+        commitHash: newCommitHash,
+        rolledBackTo: targetCommitHash,
+        message: `Rolled back successfully to ${targetCommitHash.slice(0, 7)}.`,
+      };
+    } catch (error: any) {
+      console.error('Rollback error:', error);
+      return {
+        success: false,
+        message: `Failed to roll back changes: ${error.message}`,
+        error: error.message,
+      };
+    }
+  }
 }

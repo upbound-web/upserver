@@ -2,12 +2,83 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { db } from '../config/db.js';
-import { user, customers, chatSessions } from '../db/schema.js';
+import { user, customers, chatSessions, reviewRequests } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { ChatService } from '../services/ChatService.js';
+import { existsSync } from 'fs';
+import { join, normalize } from 'path';
 
 const router: Router = Router();
+const sitesRootDir = process.env.SITES_DIR || '/home/jakedawson/upserver/sites';
+const parsedDevServerStartPort = parseInt(process.env.DEV_SERVER_START_PORT || '3000', 10);
+const devServerStartPort = Number.isFinite(parsedDevServerStartPort)
+  ? parsedDevServerStartPort
+  : 3000;
+const parsedDevServerRangeSize = parseInt(
+  process.env.DEV_SERVER_PORT_RANGE_SIZE || '50',
+  10
+);
+const devServerRangeSize = Number.isFinite(parsedDevServerRangeSize)
+  ? Math.max(0, parsedDevServerRangeSize)
+  : 50;
+const parsedDevServerEndPort = parseInt(
+  process.env.DEV_SERVER_END_PORT || `${devServerStartPort + devServerRangeSize}`,
+  10
+);
+const devServerEndPort = Number.isFinite(parsedDevServerEndPort)
+  ? Math.max(devServerStartPort, parsedDevServerEndPort)
+  : devServerStartPort + devServerRangeSize;
+
+function validateSiteFolderPath(siteFolder: string): string | null {
+  const trimmed = siteFolder.trim();
+  if (!trimmed) return 'siteFolder cannot be empty';
+
+  const normalized = normalize(trimmed);
+  if (normalized.startsWith('..') || normalized.includes('/../') || normalized.includes('\\..\\')) {
+    return 'siteFolder cannot contain parent directory traversal';
+  }
+
+  const folderPath = join(sitesRootDir, normalized);
+  if (!existsSync(folderPath)) {
+    return `Site folder does not exist on disk: ${folderPath}`;
+  }
+
+  return null;
+}
+
+async function validateStagingPortUnique(
+  stagingPort: number | undefined,
+  currentSiteId?: string
+): Promise<string | null> {
+  if (stagingPort === undefined || stagingPort === null) return null;
+  if (!Number.isInteger(stagingPort) || stagingPort <= 0 || stagingPort > 65535) {
+    return 'stagingPort must be a valid port number (1-65535)';
+  }
+  if (stagingPort < devServerStartPort || stagingPort > devServerEndPort) {
+    return `stagingPort must be within the allowed tunnel range ${devServerStartPort}-${devServerEndPort}.`;
+  }
+
+  const existingWithPort = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.stagingPort, stagingPort))
+    .limit(10);
+
+  const conflict = existingWithPort.find((site) => site.id !== currentSiteId);
+  if (conflict) {
+    return `stagingPort ${stagingPort} is already assigned to another site. Each tunnel-mapped site needs a unique fixed port.`;
+  }
+
+  return null;
+}
+
+function parseOptionalStagingPort(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+}
 
 // All admin routes require authentication and admin role
 router.use(requireAuth);
@@ -89,6 +160,20 @@ router.post('/sites', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing required fields: userId, name, siteFolder' });
     }
 
+    const siteFolderError = validateSiteFolderPath(siteFolder);
+    if (siteFolderError) {
+      return res.status(400).json({ error: siteFolderError });
+    }
+
+    const parsedStagingPort = parseOptionalStagingPort(stagingPort);
+    if (stagingPort !== undefined && stagingPort !== null && stagingPort !== '' && parsedStagingPort === undefined) {
+      return res.status(400).json({ error: 'stagingPort must be a valid number' });
+    }
+    const stagingPortError = await validateStagingPortUnique(parsedStagingPort);
+    if (stagingPortError) {
+      return res.status(400).json({ error: stagingPortError });
+    }
+
     // Verify user exists
     const existingUser = await db
       .select()
@@ -121,7 +206,7 @@ router.post('/sites', async (req, res, next) => {
       siteFolder,
       stagingUrl: stagingUrl || null,
       githubRepo: githubRepo || null,
-      stagingPort: stagingPort || null,
+      stagingPort: parsedStagingPort ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -185,6 +270,11 @@ router.put('/sites/:id', async (req, res, next) => {
 
     // If siteFolder is being changed, check for conflicts
     if (siteFolder && siteFolder !== existingSite[0].siteFolder) {
+      const siteFolderError = validateSiteFolderPath(siteFolder);
+      if (siteFolderError) {
+        return res.status(400).json({ error: siteFolderError });
+      }
+
       const conflictingSite = await db
         .select()
         .from(customers)
@@ -193,6 +283,20 @@ router.put('/sites/:id', async (req, res, next) => {
 
       if (conflictingSite.length) {
         return res.status(400).json({ error: 'Site folder already exists' });
+      }
+    }
+
+    const parsedStagingPort = parseOptionalStagingPort(stagingPort);
+    if (stagingPort !== undefined && stagingPort !== null && stagingPort !== '' && parsedStagingPort === undefined) {
+      return res.status(400).json({ error: 'stagingPort must be a valid number' });
+    }
+    if (parsedStagingPort !== undefined) {
+      const stagingPortError = await validateStagingPortUnique(
+        parsedStagingPort,
+        existingSite[0].id
+      );
+      if (stagingPortError) {
+        return res.status(400).json({ error: stagingPortError });
       }
     }
 
@@ -205,7 +309,7 @@ router.put('/sites/:id', async (req, res, next) => {
     if (siteFolder !== undefined) updateData.siteFolder = siteFolder;
     if (stagingUrl !== undefined) updateData.stagingUrl = stagingUrl || null;
     if (githubRepo !== undefined) updateData.githubRepo = githubRepo || null;
-    if (stagingPort !== undefined) updateData.stagingPort = stagingPort || null;
+    if (stagingPort !== undefined) updateData.stagingPort = parsedStagingPort ?? null;
     if (userId !== undefined) updateData.userId = userId;
 
     await db
@@ -569,5 +673,134 @@ router.get('/users/:id/chats/:sessionId', async (req, res, next) => {
   }
 });
 
-export default router;
+// ========== REVIEW REQUESTS / QUOTES ==========
 
+// GET /api/admin/reviews - List all review requests for triage/quoting
+router.get('/reviews', async (req, res, next) => {
+  try {
+    const reviews = await db
+      .select({
+        id: reviewRequests.id,
+        customerId: reviewRequests.customerId,
+        sessionId: reviewRequests.sessionId,
+        requestContent: reviewRequests.requestContent,
+        decision: reviewRequests.decision,
+        scope: reviewRequests.scope,
+        confidencePct: reviewRequests.confidencePct,
+        reason: reviewRequests.reason,
+        triggers: reviewRequests.triggers,
+        quotedPriceCents: reviewRequests.quotedPriceCents,
+        quoteNote: reviewRequests.quoteNote,
+        quotedAt: reviewRequests.quotedAt,
+        approvedAt: reviewRequests.approvedAt,
+        status: reviewRequests.status,
+        policyVersion: reviewRequests.policyVersion,
+        createdAt: reviewRequests.createdAt,
+        updatedAt: reviewRequests.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          userId: customers.userId,
+        },
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+      })
+      .from(reviewRequests)
+      .leftJoin(customers, eq(reviewRequests.customerId, customers.id))
+      .leftJoin(user, eq(customers.userId, user.id))
+      .orderBy(desc(reviewRequests.createdAt));
+
+    res.json({ reviews });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/admin/reviews/:id/quote - Add/update single-price quote for a request
+router.put('/reviews/:id/quote', async (req, res, next) => {
+  try {
+    const { priceAud, note } = req.body;
+    const parsedPrice = Number(priceAud);
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      return res.status(400).json({ error: 'priceAud must be a positive number' });
+    }
+
+    const existing = await db
+      .select()
+      .from(reviewRequests)
+      .where(eq(reviewRequests.id, req.params.id))
+      .limit(1);
+
+    if (!existing.length) {
+      return res.status(404).json({ error: 'Review request not found' });
+    }
+
+    const now = new Date();
+    await db
+      .update(reviewRequests)
+      .set({
+        quotedPriceCents: Math.round(parsedPrice * 100),
+        quoteNote: typeof note === 'string' && note.trim() ? note.trim() : null,
+        status: 'quoted',
+        quotedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(reviewRequests.id, req.params.id));
+
+    const updated = await db
+      .select()
+      .from(reviewRequests)
+      .where(eq(reviewRequests.id, req.params.id))
+      .limit(1);
+
+    res.json({ review: updated[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/admin/reviews/:id/status - Update request status after quote lifecycle
+router.put('/reviews/:id/status', async (req, res, next) => {
+  try {
+    const { status } = req.body as { status?: string };
+    const allowedStatuses = new Set(['open', 'quoted', 'approved', 'rejected', 'completed']);
+
+    if (!status || !allowedStatuses.has(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    const existing = await db
+      .select()
+      .from(reviewRequests)
+      .where(eq(reviewRequests.id, req.params.id))
+      .limit(1);
+
+    if (!existing.length) {
+      return res.status(404).json({ error: 'Review request not found' });
+    }
+
+    await db
+      .update(reviewRequests)
+      .set({
+        status: status as 'open' | 'quoted' | 'approved' | 'rejected' | 'completed',
+        updatedAt: new Date(),
+      })
+      .where(eq(reviewRequests.id, req.params.id));
+
+    const updated = await db
+      .select()
+      .from(reviewRequests)
+      .where(eq(reviewRequests.id, req.params.id))
+      .limit(1);
+
+    res.json({ review: updated[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;

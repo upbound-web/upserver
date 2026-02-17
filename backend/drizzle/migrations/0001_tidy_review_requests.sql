@@ -1,0 +1,21 @@
+CREATE TABLE `review_requests` (
+	`id` text PRIMARY KEY NOT NULL,
+	`customer_id` text NOT NULL,
+	`session_id` text NOT NULL,
+	`customer_message_id` text NOT NULL,
+	`assistant_message_id` text NOT NULL,
+	`request_content` text NOT NULL,
+	`decision` text NOT NULL,
+	`scope` text NOT NULL,
+	`confidence_pct` integer NOT NULL,
+	`reason` text NOT NULL,
+	`triggers` text,
+	`policy_version` text DEFAULT 'v1' NOT NULL,
+	`status` text DEFAULT 'open' NOT NULL,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`session_id`) REFERENCES `chat_sessions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`customer_message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`assistant_message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade
+);
