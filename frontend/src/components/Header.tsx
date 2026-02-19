@@ -40,9 +40,9 @@ export default function Header() {
   })
 
   const { data: customerData } = useQuery({
-    queryKey: ['customerProfile'],
-    queryFn: getCustomerProfile,
-    enabled: !!session?.user,
+    queryKey: ['customerProfile', viewAsUserId],
+    queryFn: () => getCustomerProfile(viewAsUserId),
+    enabled: shouldUseCustomerServerControls,
   })
 
   const stagingUrl = customerData?.customer?.stagingUrl || null

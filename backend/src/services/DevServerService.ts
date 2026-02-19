@@ -2,7 +2,7 @@ import { db } from "../config/db.js";
 import { devServers, customers } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { spawn, ChildProcess, exec } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import treeKill from "tree-kill";
 import findFreePort from "find-free-port";
@@ -16,6 +16,75 @@ const runningProcesses = new Map<string, ChildProcess>();
 const startingCustomers = new Set<string>();
 
 export class DevServerService {
+  /**
+   * Ensure the Vite config includes the staging hostname in server.allowedHosts
+   * so that requests via the Cloudflare tunnel aren't blocked.
+   */
+  private static ensureViteAllowedHost(sitePath: string, stagingUrl: string | null) {
+    if (!stagingUrl) return;
+
+    // Extract hostname from staging URL (could be bare hostname or full URL)
+    let hostname: string;
+    try {
+      hostname = stagingUrl.includes("://")
+        ? new URL(stagingUrl).hostname
+        : new URL(`https://${stagingUrl}`).hostname;
+    } catch {
+      return;
+    }
+
+    // Find vite config file
+    const configNames = ["vite.config.ts", "vite.config.js", "vite.config.mts", "vite.config.mjs"];
+    const configPath = configNames
+      .map((name) => join(sitePath, name))
+      .find((p) => existsSync(p));
+    if (!configPath) return;
+
+    const content = readFileSync(configPath, "utf-8");
+
+    // Skip if this hostname is already present
+    if (content.includes(hostname)) return;
+
+    // If there's an existing allowedHosts array, append to it
+    const allowedHostsArrayRe = /(allowedHosts\s*:\s*\[)([^\]]*)\]/;
+    const match = content.match(allowedHostsArrayRe);
+    if (match) {
+      const existing = match[2].trim();
+      const separator = existing.length > 0 ? ", " : "";
+      const updated = content.replace(
+        allowedHostsArrayRe,
+        `$1${match[2]}${separator}'${hostname}']`
+      );
+      writeFileSync(configPath, updated, "utf-8");
+      console.log(`[${sitePath}] Added '${hostname}' to existing allowedHosts in vite config`);
+      return;
+    }
+
+    // If there's a server: { block, inject allowedHosts into it
+    const serverBlockRe = /(server\s*:\s*\{)/;
+    if (serverBlockRe.test(content)) {
+      const updated = content.replace(
+        serverBlockRe,
+        `$1\n    allowedHosts: ['${hostname}'],`
+      );
+      writeFileSync(configPath, updated, "utf-8");
+      console.log(`[${sitePath}] Injected allowedHosts into vite config server block`);
+      return;
+    }
+
+    // If there's a defineConfig call but no server block, add one
+    const defineConfigRe = /(defineConfig\s*\(\s*\{)/;
+    if (defineConfigRe.test(content)) {
+      const updated = content.replace(
+        defineConfigRe,
+        `$1\n  server: {\n    allowedHosts: ['${hostname}'],\n  },`
+      );
+      writeFileSync(configPath, updated, "utf-8");
+      console.log(`[${sitePath}] Added server.allowedHosts to vite config`);
+      return;
+    }
+  }
+
   private static getDevServerPortRange() {
     const parsedStart = parseInt(process.env.DEV_SERVER_START_PORT || "3000", 10);
     const start = Number.isFinite(parsedStart) ? parsedStart : 3000;
@@ -335,6 +404,7 @@ export class DevServerService {
             stdio: "pipe",
             env: {
               ...process.env,
+              NODE_ENV: "development",
               TANSTACK_DEVTOOLS_PORT: devtoolsPort.toString(),
             },
           });
@@ -376,11 +446,14 @@ export class DevServerService {
         });
       }
 
+      // Ensure staging hostname is in Vite's allowedHosts before starting
+      this.ensureViteAllowedHost(sitePath, customer.stagingUrl);
+
       // TanStack devtools' Vite plugin starts a separate event-bus on port 42069 by default.
       // That collides when multiple sites run. Disable it for UpServer-spawned instances by
       // forcing NODE_ENV away from "development" (the event-bus won't start otherwise).
       const nodeEnvForChild =
-        hasTanstackDevtoolsVite ? "production" : process.env.NODE_ENV;
+        hasTanstackDevtoolsVite ? "production" : "development";
 
       childProcess = spawn(command, args, {
         cwd: sitePath,

@@ -27,8 +27,15 @@ export interface ReviewRequest {
   updatedAt: string
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+function appendUserIdParam(url: string, userId?: string | null): string {
+  if (!userId) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}userId=${encodeURIComponent(userId)}`
+}
+
+async function fetchWithAuth(url: string, options: RequestInit = {}, userId?: string | null) {
+  const finalUrl = appendUserIdParam(url, userId)
+  const response = await fetch(`${API_BASE_URL}${finalUrl}`, {
     ...options,
     credentials: 'include',
   })
@@ -41,12 +48,12 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   return response.json()
 }
 
-export async function getCustomerProfile(): Promise<{ customer: CustomerProfile }> {
-  return fetchWithAuth('/api/customer/me')
+export async function getCustomerProfile(userId?: string | null): Promise<{ customer: CustomerProfile }> {
+  return fetchWithAuth('/api/customer/me', {}, userId)
 }
 
-export async function getCustomerReviewRequests(): Promise<{ reviewRequests: ReviewRequest[] }> {
-  return fetchWithAuth('/api/customer/review-requests')
+export async function getCustomerReviewRequests(userId?: string | null): Promise<{ reviewRequests: ReviewRequest[] }> {
+  return fetchWithAuth('/api/customer/review-requests', {}, userId)
 }
 
 export async function approveReviewRequest(

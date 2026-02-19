@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { impersonateUser } from '../middleware/impersonateUser.js';
 import { ChatService } from '../services/ChatService.js';
 import { db } from '../config/db.js';
 import { reviewRequests } from '../db/schema.js';
@@ -9,6 +10,8 @@ const router: Router = Router();
 
 // All routes require authentication
 router.use(requireAuth);
+// Allow admins to impersonate users via userId query param
+router.use(impersonateUser);
 
 // GET /api/customer/me - Get the current customer's info (staging URL/port, site folder, etc.)
 router.get('/me', async (req, res, next) => {

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useSession } from '@/lib/auth'
 import { RequireAuth } from '@/lib/route-guards'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 import {
   getDevServerStatus,
   getDevServerPreflight,
@@ -32,13 +33,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+const dashboardSearchSchema = z.object({
+  userId: z.string().optional(),
+})
+
 export const Route = createFileRoute('/dashboard')({
+  validateSearch: dashboardSearchSchema,
   component: DashboardPage,
 })
 
 function DashboardPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
+  const search = Route.useSearch() as { userId?: string }
+  const viewAsUserId = search?.userId || null
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
   const [rollbackError, setRollbackError] = useState<string | null>(null)
@@ -48,20 +56,20 @@ function DashboardPage() {
   const [startPendingMs, setStartPendingMs] = useState(0)
 
   const { data: statusData, isLoading } = useQuery({
-    queryKey: ['devServerStatus'],
-    queryFn: () => getDevServerStatus(),
+    queryKey: ['devServerStatus', viewAsUserId],
+    queryFn: () => getDevServerStatus(viewAsUserId),
     refetchInterval: 5000,
   })
 
   const { data: preflightData } = useQuery({
-    queryKey: ['devServerPreflight'],
-    queryFn: () => getDevServerPreflight(),
+    queryKey: ['devServerPreflight', viewAsUserId],
+    queryFn: () => getDevServerPreflight(viewAsUserId),
     refetchInterval: 15000,
   })
 
   const { data: customerData } = useQuery({
-    queryKey: ['customerProfile'],
-    queryFn: getCustomerProfile,
+    queryKey: ['customerProfile', viewAsUserId],
+    queryFn: () => getCustomerProfile(viewAsUserId),
   })
 
   const { data: publishStatusData, refetch: refetchPublishStatus } = useQuery({
@@ -75,22 +83,22 @@ function DashboardPage() {
   })
 
   const { data: reviewRequestsData } = useQuery({
-    queryKey: ['customerReviewRequests'],
-    queryFn: getCustomerReviewRequests,
+    queryKey: ['customerReviewRequests', viewAsUserId],
+    queryFn: () => getCustomerReviewRequests(viewAsUserId),
     refetchInterval: 10000,
   })
 
   const { data: sessionsData } = useQuery({
-    queryKey: ['chatSessions'],
-    queryFn: () => getChatSessions(),
+    queryKey: ['chatSessions', viewAsUserId],
+    queryFn: () => getChatSessions(viewAsUserId),
   })
 
   const startMutation = useMutation({
-    mutationFn: () => startDevServer(),
+    mutationFn: () => startDevServer(viewAsUserId),
     onSuccess: () => {
       setStartPendingMs(0)
-      queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
-      queryClient.invalidateQueries({ queryKey: ['devServerPreflight'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerStatus', viewAsUserId] })
+      queryClient.invalidateQueries({ queryKey: ['devServerPreflight', viewAsUserId] })
     },
     onError: () => {
       setStartPendingMs(0)
@@ -98,10 +106,10 @@ function DashboardPage() {
   })
 
   const stopMutation = useMutation({
-    mutationFn: () => stopDevServer(),
+    mutationFn: () => stopDevServer(viewAsUserId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['devServerStatus'] })
-      queryClient.invalidateQueries({ queryKey: ['devServerPreflight'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerStatus', viewAsUserId] })
+      queryClient.invalidateQueries({ queryKey: ['devServerPreflight', viewAsUserId] })
     },
   })
 
