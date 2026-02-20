@@ -540,41 +540,52 @@ function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Rollback</CardTitle>
+            <CardTitle>Version History</CardTitle>
             <CardDescription>
-              Revert to one of your last 10 versions if something doesn’t look right.
+              Your published versions. You can revert to any previous version if something doesn’t look right.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {publishHistoryData?.history?.length ? (
-              publishHistoryData.history.map((item) => (
+            {publishHistoryData?.history && publishHistoryData.history.length > 1 ? (
+              publishHistoryData.history.map((item, index) => (
                 <div
                   key={item.commitHash}
                   className="rounded-lg border border-stone-200 dark:border-stone-800 p-3 flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm truncate">{item.message}</p>
+                    <div className="flex items-center gap-2">
+                      {index === 0 && (
+                        <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                          Current
+                        </span>
+                      )}
+                      <p className="text-sm truncate">{item.message}</p>
+                    </div>
                     <p className="text-xs text-stone-500">
-                      {new Date(item.timestamp).toLocaleString()} • {item.commitHash.slice(0, 7)}
+                      {new Date(item.timestamp).toLocaleString()}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRollback(item.commitHash)}
-                    disabled={rollbackMutation.isPending}
-                  >
-                    {rollbackMutation.isPending && selectedRollbackCommit === item.commitHash
-                      ? 'Rolling back...'
-                      : 'Rollback'}
-                  </Button>
+                  {index > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRollback(item.commitHash)}
+                      disabled={rollbackMutation.isPending}
+                    >
+                      {rollbackMutation.isPending && selectedRollbackCommit === item.commitHash
+                        ? ‘Rolling back...’
+                        : ‘Restore’}
+                    </Button>
+                  )}
                 </div>
               ))
             ) : (
-              <p className="text-sm text-stone-600 dark:text-stone-400">No commit history available yet.</p>
+              <p className="text-sm text-stone-600 dark:text-stone-400">
+                Version history appears here after you publish changes. Use the "Publish to Live Site" button above to save a version.
+              </p>
             )}
             {(rollbackError || rollbackSuccess) && (
-              <Alert variant={rollbackError ? 'destructive' : undefined}>
+              <Alert variant={rollbackError ? ‘destructive’ : undefined}>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{rollbackError || rollbackSuccess}</AlertDescription>
               </Alert>
