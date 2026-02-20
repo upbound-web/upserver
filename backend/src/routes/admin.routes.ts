@@ -165,6 +165,10 @@ router.post('/sites', async (req, res, next) => {
       return res.status(400).json({ error: siteFolderError });
     }
 
+    if (stagingUrl && !stagingUrl.toLowerCase().includes('staging')) {
+      return res.status(400).json({ error: 'Staging URL must contain the word "staging" (for Cloudflare cache rules)' });
+    }
+
     const parsedStagingPort = parseOptionalStagingPort(stagingPort);
     if (stagingPort !== undefined && stagingPort !== null && stagingPort !== '' && parsedStagingPort === undefined) {
       return res.status(400).json({ error: 'stagingPort must be a valid number' });
@@ -284,6 +288,10 @@ router.put('/sites/:id', async (req, res, next) => {
       if (conflictingSite.length) {
         return res.status(400).json({ error: 'Site folder already exists' });
       }
+    }
+
+    if (stagingUrl !== undefined && stagingUrl && !stagingUrl.toLowerCase().includes('staging')) {
+      return res.status(400).json({ error: 'Staging URL must contain the word "staging" (for Cloudflare cache rules)' });
     }
 
     const parsedStagingPort = parseOptionalStagingPort(stagingPort);

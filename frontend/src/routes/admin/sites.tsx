@@ -51,7 +51,10 @@ const siteSchema = z.object({
   userId: z.string().min(1, 'User is required'),
   name: z.string().min(1, 'Name is required'),
   siteFolder: z.string().min(1, 'Site folder is required'),
-  stagingUrl: z.string().optional(),
+  stagingUrl: z.string().optional().refine(
+    (val) => !val || val.toLowerCase().includes('staging'),
+    { message: 'Staging URL must contain the word "staging" (for Cloudflare cache rules)' }
+  ),
   githubRepo: z.string().optional(),
   stagingPort: z.coerce.number().optional(),
 })
@@ -289,7 +292,7 @@ function SitesPage() {
                   <Input
                     id="create-stagingUrl"
                     {...createForm.register('stagingUrl')}
-                    placeholder="staging.example.com"
+                    placeholder="staging-sitename.example.com"
                   />
                 </div>
                 <div>
@@ -395,7 +398,7 @@ function SitesPage() {
                   <Input
                     id="edit-stagingUrl"
                     {...updateForm.register('stagingUrl')}
-                    placeholder="staging.example.com"
+                    placeholder="staging-sitename.example.com"
                   />
                 </div>
                 <div>
