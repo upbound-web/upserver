@@ -73,13 +73,13 @@ function DashboardPage() {
   })
 
   const { data: publishStatusData, refetch: refetchPublishStatus } = useQuery({
-    queryKey: ['publishStatus'],
-    queryFn: getPublishStatus,
+    queryKey: ['publishStatus', viewAsUserId],
+    queryFn: () => getPublishStatus(viewAsUserId),
   })
 
   const { data: publishHistoryData, refetch: refetchPublishHistory } = useQuery({
-    queryKey: ['publishHistory'],
-    queryFn: getPublishHistory,
+    queryKey: ['publishHistory', viewAsUserId],
+    queryFn: () => getPublishHistory(viewAsUserId),
   })
 
   const { data: reviewRequestsData } = useQuery({
@@ -114,7 +114,7 @@ function DashboardPage() {
   })
 
   const publishMutation = useMutation({
-    mutationFn: publishSite,
+    mutationFn: () => publishSite(viewAsUserId),
     onSuccess: (data) => {
       setPublishError(null)
       setPublishMessage(data.message || 'Your changes are now live! It may take a minute to update.')
@@ -128,13 +128,13 @@ function DashboardPage() {
   })
 
   const rollbackMutation = useMutation({
-    mutationFn: (commitHash: string) => rollbackToCommit(commitHash),
+    mutationFn: (commitHash: string) => rollbackToCommit(commitHash, viewAsUserId),
     onSuccess: (data) => {
       setRollbackError(null)
       setRollbackSuccess(data.message || 'Rollback completed.')
       refetchPublishStatus()
       refetchPublishHistory()
-      queryClient.invalidateQueries({ queryKey: ['devServerPreflight'] })
+      queryClient.invalidateQueries({ queryKey: ['devServerPreflight', viewAsUserId] })
     },
     onError: (error: unknown) => {
       setRollbackSuccess(null)

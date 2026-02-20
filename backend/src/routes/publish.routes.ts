@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { impersonateUser } from '../middleware/impersonateUser.js';
 import { PublishService } from '../services/PublishService.js';
 import { ChatService } from '../services/ChatService.js';
 
@@ -7,6 +8,8 @@ const router: Router = Router();
 
 // All routes require authentication
 router.use(requireAuth);
+// Allow admins to impersonate users via userId query param
+router.use(impersonateUser);
 
 // POST /api/publish - Publish changes to production
 router.post('/', async (req, res, next) => {

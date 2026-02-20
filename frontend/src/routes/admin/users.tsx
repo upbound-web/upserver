@@ -129,7 +129,7 @@ function UsersPage() {
   const handleViewAsUser = (user: User) => {
     // Only allow viewing as non-admin users
     if (user.role !== 'admin') {
-      navigate({ to: '/chat', search: { userId: user.id } })
+      navigate({ to: '/dashboard', search: { userId: user.id } })
     }
   }
 

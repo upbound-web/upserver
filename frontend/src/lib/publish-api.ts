@@ -1,5 +1,11 @@
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'
 
+function appendUserId(url: string, userId?: string | null): string {
+  if (!userId) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}userId=${encodeURIComponent(userId)}`
+}
+
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const headers: HeadersInit = {
     ...options.headers,
@@ -20,12 +26,12 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   return response.json()
 }
 
-export async function publishSite(): Promise<{ success: boolean; message: string; commitHash?: string; warning?: string }> {
-  return fetchWithAuth('/api/publish', { method: 'POST' })
+export async function publishSite(userId?: string | null): Promise<{ success: boolean; message: string; commitHash?: string; warning?: string }> {
+  return fetchWithAuth(appendUserId('/api/publish', userId), { method: 'POST' })
 }
 
-export async function getPublishStatus(): Promise<{ lastPublish?: { commitHash: string; timestamp: number; message: string } }> {
-  return fetchWithAuth('/api/publish/status')
+export async function getPublishStatus(userId?: string | null): Promise<{ lastPublish?: { commitHash: string; timestamp: number; message: string } }> {
+  return fetchWithAuth(appendUserId('/api/publish/status', userId))
 }
 
 export interface PublishHistoryItem {
@@ -34,19 +40,16 @@ export interface PublishHistoryItem {
   message: string
 }
 
-export async function getPublishHistory(): Promise<{ history: PublishHistoryItem[] }> {
-  return fetchWithAuth('/api/publish/history')
+export async function getPublishHistory(userId?: string | null): Promise<{ history: PublishHistoryItem[] }> {
+  return fetchWithAuth(appendUserId('/api/publish/history', userId))
 }
 
 export async function rollbackToCommit(
-  commitHash: string
+  commitHash: string,
+  userId?: string | null
 ): Promise<{ success: boolean; message: string; commitHash?: string; rolledBackTo?: string }> {
-  return fetchWithAuth('/api/publish/rollback', {
+  return fetchWithAuth(appendUserId('/api/publish/rollback', userId), {
     method: 'POST',
     body: JSON.stringify({ commitHash }),
   })
 }
-
-
-
-
