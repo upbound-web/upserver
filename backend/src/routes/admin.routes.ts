@@ -6,8 +6,12 @@ import { user, customers, chatSessions, reviewRequests } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { ChatService } from '../services/ChatService.js';
-import { existsSync } from 'fs';
-import { join, normalize } from 'path';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { join, normalize, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const router: Router = Router();
 const sitesRootDir = process.env.SITES_DIR || '/home/jakedawson/upserver/sites';
@@ -806,6 +810,50 @@ router.put('/reviews/:id/status', async (req, res, next) => {
       .limit(1);
 
     res.json({ review: updated[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ========== AI Configuration ==========
+
+// GET /api/admin/ai-config - Get loaded AI plugins and skills
+router.get('/ai-config', async (req, res, next) => {
+  try {
+    const pluginPath = resolve(__dirname, '../../customer-ai-plugin');
+    const plugins: Array<{ name: string; version: string; skills: string[] }> = [];
+
+    try {
+      const manifestPath = join(pluginPath, '.claude-plugin', 'plugin.json');
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+
+      const skills: string[] = [];
+      const skillsDir = join(pluginPath, 'skills');
+      if (existsSync(skillsDir)) {
+        for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+          if (entry.isDirectory()) {
+            const skillMd = join(skillsDir, entry.name, 'SKILL.md');
+            if (existsSync(skillMd)) {
+              skills.push(entry.name);
+            }
+          }
+        }
+      }
+
+      plugins.push({
+        name: manifest.name || 'Unknown',
+        version: manifest.version || '0.0.0',
+        skills,
+      });
+    } catch {
+      // Plugin directory doesn't exist or is malformed
+    }
+
+    res.json({
+      model: 'claude-haiku-4-5-20251001',
+      fileCheckpointing: true,
+      plugins,
+    });
   } catch (error) {
     next(error);
   }

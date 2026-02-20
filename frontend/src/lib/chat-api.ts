@@ -28,6 +28,8 @@ export interface Message {
   content: string
   images?: string | null
   flagged: boolean
+  sdkUserMessageUuid?: string | null
+  filesModified?: string | null
   createdAt: string
 }
 
@@ -117,6 +119,7 @@ export type StreamEvent =
     type: 'done'
     flagged: boolean
     filesModified: string[]
+    sdkUserMessageUuid?: string
     claudeSessionId?: string
   }
   | { type: 'error'; message: string }
@@ -181,6 +184,7 @@ export async function streamMessage(
             type: 'done',
             flagged: !!parsed.flagged,
             filesModified: parsed.filesModified || [],
+            sdkUserMessageUuid: parsed.sdkUserMessageUuid,
             claudeSessionId: parsed.claudeSessionId,
           })
         } else if (eventType === 'error') {
@@ -200,5 +204,16 @@ export async function streamMessage(
     buffer += decoder.decode(value, { stream: true })
     processBuffer()
   }
+}
+
+export async function rewindToMessage(
+  sessionId: string,
+  messageId: string,
+  userId?: string | null
+): Promise<{ success: boolean }> {
+  return fetchWithAuth(`/api/chat/sessions/${sessionId}/rewind`, {
+    method: 'POST',
+    body: JSON.stringify({ messageId }),
+  }, userId)
 }
 

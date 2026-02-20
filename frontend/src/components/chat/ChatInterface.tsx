@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSessionMessages, sendMessage, streamMessage, type Message } from '@/lib/chat-api'
+import { getSessionMessages, sendMessage, streamMessage, rewindToMessage, type Message } from '@/lib/chat-api'
 import { MessageBubble } from './MessageBubble'
 import { AdminImpersonationBanner } from './AdminImpersonationBanner'
 import { Button } from '@/components/ui/button'
-import { Loader2, Send, Image as ImageIcon, X, AlertCircle } from 'lucide-react'
+import { Loader2, Send, Image as ImageIcon, X, AlertCircle, Check } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import imageCompression from 'browser-image-compression'
 import { Alert, AlertDescription } from '../ui/alert'
@@ -43,6 +43,8 @@ export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
     enabled: !!sessionId,
   })
 
+  const [undoSuccess, setUndoSuccess] = useState<string | null>(null)
+
   const sendMessageMutation = useMutation({
     mutationFn: ({ sessionId, content, images }: { sessionId: string; content: string; images?: File[] }) =>
       sendMessage(sessionId, content, images, viewAsUserId),
@@ -52,6 +54,16 @@ export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
       setInputValue('')
       setSelectedImages([])
       setOptimizedImages([])
+    },
+  })
+
+  const rewindMutation = useMutation({
+    mutationFn: ({ sessionId, messageId }: { sessionId: string; messageId: string }) =>
+      rewindToMessage(sessionId, messageId, viewAsUserId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', sessionId, viewAsUserId] })
+      setUndoSuccess(variables.messageId)
+      setTimeout(() => setUndoSuccess(null), 2000)
     },
   })
 
@@ -252,8 +264,25 @@ export function ChatInterface({ sessionId, viewAsUserId }: ChatInterfaceProps) {
         ) : (
           <div className="max-w-3xl mx-auto w-full">
             {messages.map((message: Message) => (
-              <MessageBubble key={message.id} message={message} userId={viewAsUserId} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                userId={viewAsUserId}
+                onUndo={
+                  sessionId
+                    ? (messageId) => rewindMutation.mutate({ sessionId, messageId })
+                    : undefined
+                }
+              />
             ))}
+            {undoSuccess && (
+              <div className="flex justify-start mb-4">
+                <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5" />
+                  Files reverted successfully
+                </div>
+              </div>
+            )}
             {(sendMessageMutation.isPending || isStreaming) && (
               <div className="flex justify-start mb-4">
                 <div className="bg-stone-100 dark:bg-stone-800 rounded-lg px-4 py-2">

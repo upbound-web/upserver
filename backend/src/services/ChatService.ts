@@ -119,6 +119,7 @@ export class ChatService {
       response,
       filesModified,
       claudeSessionId: returnedSessionId,
+      userMessageUuid: returnedUserMessageUuid,
       agentCompletedSuccessfully,
       agentHadError,
     } = await ClaudeAgentService.processRequest(
@@ -157,6 +158,8 @@ export class ChatService {
       role: 'assistant',
       content: response,
       flagged,
+      sdkUserMessageUuid: returnedUserMessageUuid || null,
+      filesModified: filesModified && filesModified.length > 0 ? JSON.stringify(filesModified) : null,
       createdAt: new Date(),
     });
 
@@ -217,6 +220,7 @@ export class ChatService {
       type: 'done';
       flagged: boolean;
       filesModified?: string[];
+      sdkUserMessageUuid?: string;
       claudeSessionId?: string;
     }
     | { type: 'error'; message: string },
@@ -288,6 +292,7 @@ export class ChatService {
     let agentCompletedSuccessfully = false;
     let agentHadError = false;
     let returnedSessionId: string | undefined = claudeSessionId;
+    let userMessageUuid: string | undefined;
 
     try {
       for await (const event of ClaudeAgentService.streamRequest(
@@ -300,6 +305,8 @@ export class ChatService {
       )) {
         if (event.type === 'init' && event.sessionId) {
           returnedSessionId = event.sessionId;
+        } else if (event.type === 'userMessageId') {
+          userMessageUuid = event.uuid;
         } else if (event.type === 'text') {
           responseMessages.push(event.text);
           // Stream the text chunk to caller
@@ -357,6 +364,8 @@ export class ChatService {
         role: 'assistant',
         content: fullResponse,
         flagged,
+        sdkUserMessageUuid: userMessageUuid || null,
+        filesModified: filesModified.length > 0 ? JSON.stringify(filesModified) : null,
         createdAt: new Date(),
       });
 
@@ -397,6 +406,7 @@ export class ChatService {
         type: 'done',
         flagged,
         filesModified: filesModified.length > 0 ? filesModified : undefined,
+        sdkUserMessageUuid: userMessageUuid,
         claudeSessionId: returnedSessionId,
       };
     } catch (error) {
@@ -407,6 +417,61 @@ export class ChatService {
           "I'm having trouble processing your request right now. Please try again or contact support if the issue persists.",
       };
     }
+  }
+
+  static async rewindToMessage(
+    sessionId: string,
+    customerId: string,
+    messageId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    // Look up the message
+    const msg = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+
+    if (!msg.length || msg[0].sessionId !== sessionId) {
+      return { success: false, error: 'Message not found' };
+    }
+
+    const sdkUserMessageUuid = msg[0].sdkUserMessageUuid;
+    if (!sdkUserMessageUuid) {
+      return { success: false, error: 'No checkpoint UUID for this message' };
+    }
+
+    // Get the session's claudeSessionId
+    const session = await db
+      .select()
+      .from(chatSessions)
+      .where(eq(chatSessions.id, sessionId))
+      .limit(1);
+
+    if (!session.length || session[0].customerId !== customerId) {
+      return { success: false, error: 'Session not found or unauthorized' };
+    }
+
+    const claudeSessionId = session[0].claudeSessionId;
+    if (!claudeSessionId) {
+      return { success: false, error: 'No Claude session to rewind' };
+    }
+
+    // Get customer's siteFolder
+    const customerData = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .limit(1);
+
+    if (!customerData.length) {
+      return { success: false, error: 'Customer not found' };
+    }
+
+    return ClaudeAgentService.rewindFiles(
+      customerData[0].siteFolder,
+      claudeSessionId,
+      sdkUserMessageUuid
+    );
   }
 
   static async getCustomerByUserId(userId: string) {

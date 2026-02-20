@@ -1,14 +1,16 @@
 import { type Message, getImageUrl } from "@/lib/chat-api";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/lib/markdown";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface MessageBubbleProps {
   message: Message;
   userId?: string | null;
+  onUndo?: (messageId: string) => void;
 }
 
-export function MessageBubble({ message, userId }: MessageBubbleProps) {
+export function MessageBubble({ message, userId, onUndo }: MessageBubbleProps) {
   const isCustomer = message.role === "customer";
   const isSystem = message.role === "system";
 
@@ -89,13 +91,36 @@ export function MessageBubble({ message, userId }: MessageBubbleProps) {
         </div>
         <div
           className={cn(
-            "text-xs mt-1",
+            "text-xs mt-1 flex items-center gap-2",
             isCustomer
               ? "text-primary-foreground/70"
               : "text-stone-500 dark:text-stone-400"
           )}
         >
           {formatTime(message.createdAt)}
+          {!isCustomer && onUndo && (() => {
+            try {
+              const files = message.filesModified
+                ? JSON.parse(message.filesModified)
+                : null;
+              if (Array.isArray(files) && files.length > 0) {
+                return (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+                    onClick={() => onUndo(message.id)}
+                  >
+                    <Undo2 className="h-3 w-3 mr-1" />
+                    Undo
+                  </Button>
+                );
+              }
+            } catch {
+              return null;
+            }
+            return null;
+          })()}
         </div>
       </div>
     </div>

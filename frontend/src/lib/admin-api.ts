@@ -205,4 +205,20 @@ export async function updateAdminReviewStatus(
   })
 }
 
+// ========== AI Configuration ==========
+
+export interface AiConfig {
+  model: string
+  fileCheckpointing: boolean
+  plugins: Array<{
+    name: string
+    version: string
+    skills: string[]
+  }>
+}
+
+export async function getAiConfig(): Promise<AiConfig> {
+  return fetchWithAuth('/api/admin/ai-config')
+}
+
 

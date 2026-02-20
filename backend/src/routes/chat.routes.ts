@@ -192,6 +192,7 @@ router.post('/sessions/:id/messages/stream', async (req, res, next) => {
           sendEvent('done', {
             flagged: event.flagged,
             filesModified: event.filesModified || [],
+            sdkUserMessageUuid: event.sdkUserMessageUuid,
             claudeSessionId: event.claudeSessionId,
           });
           res.end();
@@ -206,6 +207,37 @@ router.post('/sessions/:id/messages/stream', async (req, res, next) => {
       });
       res.end();
     }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/chat/sessions/:id/rewind - Rewind files to before a specific message
+router.post('/sessions/:id/rewind', async (req, res, next) => {
+  try {
+    const { messageId } = req.body;
+
+    if (!messageId || typeof messageId !== 'string') {
+      return res.status(400).json({ error: 'messageId is required' });
+    }
+
+    const customer = await ChatService.getCustomerByUserId(req.user.id);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const result = await ChatService.rewindToMessage(
+      req.params.id,
+      customer.id,
+      messageId
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

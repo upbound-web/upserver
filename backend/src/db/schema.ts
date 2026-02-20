@@ -64,6 +64,8 @@ export const messages = sqliteTable('messages', {
   content: text('content').notNull(),
   images: text('images'), // JSON stringified array
   flagged: integer('flagged', { mode: 'boolean' }).notNull().default(false),
+  sdkUserMessageUuid: text('sdk_user_message_uuid'),
+  filesModified: text('files_modified'), // JSON stringified array of file paths
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
 

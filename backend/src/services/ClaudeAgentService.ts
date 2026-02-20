@@ -1,7 +1,12 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { join, resolve, relative } from "path";
+import { join, resolve, relative, dirname } from "path";
 import { access } from "fs/promises";
+import { fileURLToPath } from "url";
 import { NotificationService } from "./NotificationService.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PLUGIN_PATH = resolve(__dirname, "../../customer-ai-plugin");
 
 interface Message {
   role: string;
@@ -12,6 +17,7 @@ export type ClaudeStreamEvent =
   | { type: "init"; sessionId?: string }
   | { type: "text"; text: string }
   | { type: "fileEdit"; path: string }
+  | { type: "userMessageId"; uuid: string }
   | {
       type: "result";
       subtype: string;
@@ -107,6 +113,12 @@ SAFETY GUIDELINES:
       // Set working directory to customer's site
       cwd: sitePath,
 
+      // Enable file checkpointing for undo support
+      enableFileCheckpointing: true,
+
+      // Load the frontend-design skill plugin
+      plugins: [{ type: "local" as const, path: PLUGIN_PATH }],
+
       //model
       model: "claude-haiku-4-5-20251001",
 
@@ -186,6 +198,15 @@ SAFETY GUIDELINES:
           );
         }
 
+        // Capture SDK user message UUID for file checkpointing
+        if (
+          message.type === "user" &&
+          (message as any).uuid &&
+          !(message as any).isReplay
+        ) {
+          yield { type: "userMessageId", uuid: (message as any).uuid };
+        }
+
         // Process different message types
         if (message.type === "assistant" && message.message?.content) {
           for (const block of message.message.content) {
@@ -262,6 +283,40 @@ SAFETY GUIDELINES:
   }
 
   /**
+   * Rewind files to the state before a specific user message.
+   */
+  static async rewindFiles(
+    customerSiteFolder: string,
+    claudeSessionId: string,
+    userMessageUuid: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const sitePath = join(
+      process.env.SITES_DIR || "/home/jakedawson/upserver/sites",
+      customerSiteFolder
+    );
+
+    try {
+      const gen = query({
+        prompt: "",
+        options: {
+          resume: claudeSessionId,
+          enableFileCheckpointing: true,
+          cwd: sitePath,
+          model: "claude-haiku-4-5-20251001",
+        },
+      });
+      await gen.rewindFiles(userMessageUuid);
+      return { success: true };
+    } catch (error) {
+      console.error("rewindFiles error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
    * Existing non-streaming helper that buffers all streamed text
    * into a single response string for legacy callers.
    */
@@ -276,6 +331,7 @@ SAFETY GUIDELINES:
     response: string;
     filesModified?: string[];
     claudeSessionId?: string;
+    userMessageUuid?: string;
     agentCompletedSuccessfully: boolean;
     agentHadError: boolean;
   }> {
@@ -284,6 +340,7 @@ SAFETY GUIDELINES:
     let agentCompletedSuccessfully = false;
     let agentHadError = false;
     let capturedSessionId: string | undefined = claudeSessionId;
+    let userMessageUuid: string | undefined;
 
     try {
       for await (const event of ClaudeAgentService.streamRequest(
@@ -296,6 +353,8 @@ SAFETY GUIDELINES:
       )) {
         if (event.type === "init" && event.sessionId) {
           capturedSessionId = event.sessionId;
+        } else if (event.type === "userMessageId") {
+          userMessageUuid = event.uuid;
         } else if (event.type === "text") {
           responseMessages.push(event.text);
         } else if (event.type === "fileEdit") {
@@ -319,6 +378,7 @@ SAFETY GUIDELINES:
           response: responseMessages.join("\n\n"),
           filesModified: filesModified.length > 0 ? filesModified : undefined,
           claudeSessionId: capturedSessionId,
+          userMessageUuid,
           agentCompletedSuccessfully,
           agentHadError,
         };
@@ -330,6 +390,7 @@ SAFETY GUIDELINES:
           "Request processed, but no response was generated.",
         filesModified: filesModified.length > 0 ? filesModified : undefined,
         claudeSessionId: capturedSessionId,
+        userMessageUuid,
         agentCompletedSuccessfully,
         agentHadError,
       };
