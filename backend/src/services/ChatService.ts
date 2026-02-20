@@ -161,14 +161,18 @@ export class ChatService {
     });
 
     if (flagged) {
-      await ReviewRequestService.createFromTriage({
-        customerId: customer.id,
-        sessionId,
-        customerMessageId: msgId,
-        assistantMessageId: responseId,
-        requestContent: content,
-        triage,
-      });
+      try {
+        await ReviewRequestService.createFromTriage({
+          customerId: customer.id,
+          sessionId,
+          customerMessageId: msgId,
+          assistantMessageId: responseId,
+          requestContent: content,
+          triage,
+        });
+      } catch (reviewErr) {
+        console.error('Failed to create review request (message already flagged):', reviewErr);
+      }
     }
 
     // Notify developer if flagged
@@ -330,6 +334,10 @@ export class ChatService {
       });
       const flagged = triage.decision === 'flag';
 
+      if (flagged) {
+        console.log(`[${customer.siteFolder}] Triage flagged request: triggers=${JSON.stringify(triage.triggers)}, agentSuccess=${agentCompletedSuccessfully}, agentError=${agentHadError}, filesModified=${JSON.stringify(filesModified)}`);
+      }
+
       // Update session with claudeSessionId if it was returned (for new sessions)
       if (returnedSessionId && returnedSessionId !== claudeSessionId) {
         await db
@@ -353,19 +361,23 @@ export class ChatService {
       });
 
       if (flagged) {
-        await ReviewRequestService.createFromTriage({
-          customerId: customer.id,
-          sessionId,
-          customerMessageId: msgId,
-          assistantMessageId: responseId,
-          requestContent: content,
-          triage,
-        });
+        try {
+          await ReviewRequestService.createFromTriage({
+            customerId: customer.id,
+            sessionId,
+            customerMessageId: msgId,
+            assistantMessageId: responseId,
+            requestContent: content,
+            triage,
+          });
+        } catch (reviewErr) {
+          console.error('Failed to create review request (message already flagged):', reviewErr);
+        }
       }
 
       // Notify developer if flagged
       if (flagged) {
-        await NotificationService.notifyFlaggedRequest({
+        NotificationService.notifyFlaggedRequest({
           customerName: customer.name,
           customerId: customer.id,
           request: content,

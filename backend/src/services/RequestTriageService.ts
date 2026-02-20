@@ -40,14 +40,30 @@ export class RequestTriageService {
     const normalizedRequest = input.request.trim();
     const filesModified = input.filesModified || [];
 
-    if (input.agentHadError || !input.agentCompletedSuccessfully) {
+    if (input.agentHadError) {
       triggers.push("agent_execution_error");
       return {
         decision: "flag",
         scope: "uncertain",
         confidence: 0.97,
         reason:
-          "The assistant could not complete the request cleanly, so manual review is required.",
+          "The assistant encountered an error and could not complete the request cleanly, so manual review is required.",
+        triggers,
+        policyVersion: "v1",
+      };
+    }
+
+    // If the agent didn't report clean success but still modified files,
+    // it likely completed the work — let the other checks below decide.
+    // Only flag if it did nothing at all.
+    if (!input.agentCompletedSuccessfully && filesModified.length === 0) {
+      triggers.push("agent_incomplete_no_edits");
+      return {
+        decision: "flag",
+        scope: "uncertain",
+        confidence: 0.9,
+        reason:
+          "The assistant did not complete successfully and made no file changes, so manual review is required.",
         triggers,
         policyVersion: "v1",
       };
